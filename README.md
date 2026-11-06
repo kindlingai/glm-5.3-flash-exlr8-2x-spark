@@ -10,25 +10,60 @@ int4 KV, DFlash2 speculative decoding, four requests at once, and a prompt cache
 
 ## What you need
 
-- Two Sparks joined by a 200G cable between their ConnectX ports, with an address on each end (both PCIe roots, if the
-  cable carries both).
+- Two Sparks joined by a 200G cable between their ConnectX ports (see Clustering).
 - Docker and the NVIDIA container toolkit on each box (both come with DGX OS).
 - No other model running on either box: the weights take about 86 GB a box.
 
+## Clustering
+
+Multiple DGX Sparks are required for this recipe. We recommend assigning one IP address per PCIe root in the DGX
+Spark. The Spark's ConnectX card shows each physical port twice, once on each PCIe root, and the engines use both
+roots to reach full bandwidth. For a cable on the first port, with netplan:
+
+```yaml
+# /etc/netplan/60-connectx.yaml on the first box. On the second box: 10.0.0.2 and 10.0.1.2.
+network:
+  version: 2
+  ethernets:
+    enp1s0f0np0:        # the first port on PCIe root 1
+      addresses: [10.0.0.1/24]
+      mtu: 9000
+    enP2p1s0f0np0:      # the same port on PCIe root 2
+      addresses: [10.0.1.1/24]
+      mtu: 9000
+```
+
+Then run `sudo netplan apply` on each box.
+
+We also recommend that you run [`mentat`](https://github.com/kindlingai/mentat) (`ghcr.io/kindlingai/mentat`) for
+your cluster for zero-IP configuration. `mentat` will allow this recipe to autoconfigure itself with other nodes in
+your cluster. On each box:
+
+```bash
+docker run -d --name mentat --network host --restart unless-stopped ghcr.io/kindlingai/mentat:0.27.0
+```
+
+Then start the recipe with `MENTAT=1` in place of `PEERS`, `IPS` and `IPS2`.
+
+To run without `mentat`, specify the two nodes' 10G IP addresses using `PEERS` (head first), and the matching
+ConnectX IP addresses with `IPS` (PCIe root 1) and `IPS2` (PCIe root 2), in the same order.
+
 ## Quickstart
 
-Run the published image on both boxes, with the same `PEERS` (the two LAN addresses, head first) and the same fabric
-addresses (`IPS` for the first ConnectX root, `IPS2` for the second, in `PEERS` order):
+Run the published image on both boxes with the same settings. Without `mentat`, this names the boxes as in the netplan
+example above:
 
 ```bash
 docker run -d --name glm53f-2x-spark --gpus all --network host --pid host --device /dev/infiniband \
   --ulimit memlock=-1 --ulimit core=0 --cap-drop ALL --cap-add IPC_LOCK \
   --security-opt no-new-privileges --read-only --tmpfs /tmp:size=1g,mode=1777 --init --oom-score-adj 1000 \
-  -e PEERS=192.168.100.10,192.168.100.11 -e IPS=10.0.0.10,10.0.0.11 -e IPS2=10.0.1.10,10.0.1.11 \
+  -e PEERS=192.168.100.10,192.168.100.11 -e IPS=10.0.0.1,10.0.0.2 -e IPS2=10.0.1.1,10.0.1.2 \
   -v glm53f-2x-cache:/var/lib/gr8/cache -v glm53f-2x-prompts:/var/lib/gr8/prompts -v glm53f-2x-home:/var/lib/gr8/home \
   ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest
 docker logs -f glm53f-2x-spark     # on the head: ready at "serving: http://..."
 ```
+
+With `mentat` running, replace the three addresses with `-e MENTAT=1`.
 
 The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 86 GB, the model
 and the drafter) and converts the drafter. The boxes wait for each other, so start both within a few minutes.
@@ -73,12 +108,12 @@ In `.env` next to `compose.yaml` (see `.env.example`), or with `docker run -e`, 
 
 | knob | default | |
 |---|---|---|
-| `PEERS` | none | The two boxes' LAN addresses, head first. Required unless `MENTAT=1`. |
-| `IPS`, `IPS2` | none | Each box's fabric address on its first and second ConnectX root, in `PEERS` order. |
+| `PEERS` | none | The two boxes' 10G LAN addresses, head first. Required unless `MENTAT=1`. |
+| `IPS`, `IPS2` | none | Each box's ConnectX address on PCIe root 1 and root 2, in `PEERS` order (see Clustering). |
 | `CAP` | `262208` | The KV pool in tokens, shared by the sessions: admission reserves each request's prompt + `max_tokens` from it. Every box holds the whole pool. |
 | `MAX_MODEL_LEN` | `262144` | The longest single request, prompt and output together. At most `CAP` less the guard rows. |
 | `DFLASH` | `1` | `1`: a request alone drafts with [DFlash2](https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2) (CC BY-NC-ND 4.0), downloaded and converted on the first boot. `0`: MTP only, nothing downloaded. |
-| `MENTAT` | `0` | `1`: the boxes find each other through the host's mentat daemon and register the API, in group `GROUP` (`gr8-glm53f-2x`). |
+| `MENTAT` | `0` | `1`: the boxes find each other and their ConnectX addresses through the host's `mentat` daemon, and register the API, in group `GROUP` (`gr8-glm53f-2x`). |
 
 The image pins the weights to Hugging Face commits: the release at
 [`867580a`](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4/tree/867580abd28d142bb4c56218bb81a752b7dea988)
