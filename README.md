@@ -17,8 +17,8 @@ int4 KV, DFlash2 speculative decoding, four requests at once, and a prompt cache
 ## Clustering
 
 Multiple DGX Sparks are required for this recipe. We recommend assigning one IP address per PCIe root in the DGX
-Spark. The Spark's ConnectX card shows each physical port twice, once on each PCIe root, and the engines use both
-roots to reach full bandwidth. For a cable on the first port, with netplan:
+Spark. The Spark's ConnectX card shows each physical port twice, once on each PCIe root. One root carries about
+110 Gb/s and both together about 196 Gb/s, and the engines use both. For a cable on the first port, with netplan:
 
 ```yaml
 # /etc/netplan/60-connectx.yaml on the first box. On the second box: 10.0.0.2 and 10.0.1.2.
