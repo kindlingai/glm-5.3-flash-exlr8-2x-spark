@@ -56,6 +56,10 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
+          # latest comes only from the raw rule below (main's head): the action's default flavor would also tag latest
+          # on every git tag push
+          flavor: |
+            latest=false
           tags: |
             type=raw,value=latest,enable=${{ steps.head.outputs.head }}
             type=ref,event=branch,enable=${{ steps.head.outputs.head }}
