@@ -119,6 +119,13 @@ docker exec glm53f-2x-spark gr8 glm53f smoke   # on the head: 14 checks against 
 docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # on both boxes
 ```
 
+The stop ends the engine's orderly quit, which gr8 #429 finishes once it has settled rather than after a fixed
+wait. In the measured switch runs, stopping and removing this recipe's containers — parallel `docker compose down`
+on both boxes — took 3.1-4.3 s (a two-box DGX Spark set, 2026-11-07; the runs stopped the other model's engines at
+the same time, and a `docker stop` alone was not timed separately). Prompt checkpoints already written to disk
+stay there ([The prompt cache](#the-prompt-cache)); the stop does not save every chat or its complete state.
+`docker rm` then removes the stopped container.
+
 `:latest` is main. Each commit is also published as `sha-<commit>`, and each tag under its name.
 
 ## Help
@@ -201,8 +208,13 @@ The 128K needle test passes.
 The card at the top is one run of gr8's bench at its default level. It ran in the image on two GB10s with the image's
 defaults. The data is in `kindling.json`. To regenerate it, run
 `python3 gr8/bench/bench.py kindling REPORT.json --out kindling.json --config-id tp2`. The smoke test passed 14 of 14.
-Boot: 2,196 s the first time. Of that, 2,131 s went to downloading the model and the drafter and converting the
-drafter. A restart with the cache kept took 37.9 s.
+Boot: measured on a local build of this recipe at `319ed60` with gr8 `4ed9e7b` (a two-box DGX Spark set,
+2026-11-07; the download that puts the weights on disk is separate — it is what the previous image's numbers below
+counted). The first boot with the weights already on disk reached serving 26.5 s after the run's start, of which
+24.8 s came after the start command returned; a restart with the cache kept took 24.8 s from the start command
+returning. The two measured waits after the start commands returned both rounded to 24.8 s. The boot is loading the about
+86 GB of weights and starting the engines (the pack is loaded 21.2 s into the boot, the graphs captured at 22.1 s). On the previous image the first boot took 2,196 s including the download, of which 2,131 s went to
+downloading the model and the drafter and converting the drafter, and a restart with the cache kept took 37.9 s.
 
 To run the bench in the image, on the head: `docker exec glm53f-2x-spark gr8 glm53f bench --hosts ''`. Without
 `--hosts ''` it stops with `FileNotFoundError: 'ssh'`. The bench reaches each box over ssh to cool and sample its GPU,
@@ -217,6 +229,8 @@ this recipe's container on both boxes:
 ```bash
 docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # compose: docker compose down
 ```
+
+The stop ends the engine's orderly quit, as in the Quickstart, so it takes a moment before the containers go.
 
 Switch times to and from this recipe, measured on 2026-11-07, warm, two runs each way: this recipe on a two-box
 DGX Spark pair, measured on a local build of the recipe at `319ed60` with gr8 `4ed9e7b` (the engine this recipe
@@ -234,8 +248,8 @@ reports ready; "Total" runs from the start of the stop to ready.
 
 The first boot of this recipe after its files were in place took 26.5 s from the run's start to ready, of which
 24.8 s came after the start command returned; the warm restart's wait also rounded to 24.8 s. The boot is loading
-the about 86 GB of weights and starting the engines. (The 31.3 s row above includes stopping GLM-5.3 first.) On the engine this recipe
-pinned before gr8 `4ed9e7be`, the same switch-away stop-and-remove phase took about 13-14 s.
+the about 86 GB of weights and starting the engines. (The 31.3 s row above includes stopping GLM-5.3 first.) On
+the engine this recipe pinned before gr8 `4ed9e7be`, the same switch-away stop-and-remove phase took about 13-14 s.
 
 Chats survive the round trip: four chats, their next turn replayed after a full round trip to the TP=4 model
 and back, answered in 3.1-5.9 s (total response time), all four with their context intact. These test prompts
