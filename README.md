@@ -7,8 +7,14 @@ GLM-5.3-Flash on two DGX Sparks (GB10, 128 GB each) at TP=2, served by [gr8](htt
 the K4 width of [kindlingai/glm-5.3-flash-exlr8-k2-k3-k4](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4):
 int4 KV, DFlash2 speculative decoding, four requests at once, and a prompt cache on disk.
 
+![GLM-5.3-Flash on two GB10s: decode, prefill and concurrency](docs/card.png)
+
+![Four requests decoding at once on two GB10s, at 2x speed](docs/concurrency-4.gif)
+
+*Four requests decoding at once on two GB10s, played at 2x speed.*
+
 > Work in progress. The defaults (width, `CAP`, sessions) are starting values until the benches settle them, and the
-> numbers below are from a first run. One box serves GLM-5.3-Flash with
+> numbers below are from first runs. One box serves GLM-5.3-Flash with
 > [glm-5.3-flash-exlr8-1x-spark](https://github.com/kindlingai/glm-5.3-flash-exlr8-1x-spark).
 
 Pick what to prioritize with one setting, `TUNE`:
@@ -170,7 +176,7 @@ nothing, and the image's defaults apply (K4, int4 KV, `CAP` 262,208, `MAX_MODEL_
 
 | `TUNE` | sets | you get | you give up | measured |
 |---|---|---|---|---|
-| `speed` (default) | nothing: the image's defaults | Decode, one stream: code / prose / structured 71.1 / 41.5 / 90.0 tok/s. Prefill 8K / 32K / 128K: 1,698 / 1,694 / 1,404 tok/s. The 128K needle test passes. | Requests longer than 262,144 tokens, prompt and output together. | [First numbers](#first-numbers), below: a first run, one stream at a time, on two GX10s joined by one 200G cable. There is no benchmark card for two boxes yet. |
+| `speed` (default) | nothing: the image's defaults | Decode, one stream: code / prose / structured 71.1 / 41.5 / 90.0 tok/s. Prefill 8K / 32K / 128K: 1,698 / 1,694 / 1,404 tok/s. The 128K needle test passes. | Requests longer than 262,144 tokens, prompt and output together. | [First numbers](#first-numbers), below: a first run, one stream at a time, on two GX10s joined by one 200G cable. The card at the top is a separate bench run of the same defaults, with 1 to 8 streams. |
 | `context` | the same as `speed` | The same as `speed` for now. | Nothing. | Not measured: no `CAP` above 262,208 has run on two boxes. |
 | `quality` | the same as `speed` | The same as `speed`. | Nothing. | Nothing else to measure: K4 has the most bits per weight of the release's three widths (4.0, the [release card](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4/blob/867580abd28d142bb4c56218bb81a752b7dea988/README.md)), and the image builds only the int4 KV engine. The release card's quality comparison against BF16 covers K4. |
 
@@ -191,6 +197,17 @@ One stream at a time, K4, int4 KV, DFlash2, `CAP` 262,208, on two GX10s joined b
 | prefill: 8K / 32K / 128K prompt | 1,698 / 1,694 / 1,404 |
 
 The 128K needle test passes.
+
+The card at the top is one run of gr8's bench at its default level. It ran in the image on two GB10s with the image's
+defaults. The data is in `kindling.json`. To regenerate it, run
+`python3 gr8/bench/bench.py kindling REPORT.json --out kindling.json --config-id tp2`. The smoke test passed 14 of 14.
+Boot: 2,196 s the first time. Of that, 2,131 s went to downloading the model and the drafter and converting the
+drafter. A restart with the cache kept took 37.9 s.
+
+To run the bench in the image, on the head: `docker exec glm53f-2x-spark gr8 glm53f bench --hosts ''`. Without
+`--hosts ''` it stops with `FileNotFoundError: 'ssh'`. The bench reaches each box over ssh to cool and sample its GPU,
+and the image has no ssh. With `--hosts ''` the bench does not cool the GPUs between stages. The card's run did
+not cool them either.
 
 ## Run another model
 
