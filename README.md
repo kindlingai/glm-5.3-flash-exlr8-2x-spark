@@ -15,6 +15,13 @@ int4 KV, DFlash2 speculative decoding, four requests at once, and a prompt cache
 - Two Sparks joined by a 200G cable between their ConnectX ports (see Clustering).
 - Docker and the NVIDIA container toolkit on each box (both come with DGX OS).
 - No other model running on either box: the weights take about 86 GB a box.
+- A LAN between the two boxes, with TCP ports 7340 and 7341 open.
+- Proactive memory compaction off on each box, once, as root (it holds across reboots):
+
+  ```bash
+  echo 'vm.compaction_proactiveness = 0' > /etc/sysctl.d/90-gr8-no-proactive-compaction.conf
+  sysctl -w vm.compaction_proactiveness=0
+  ```
 
 ## Clustering
 
