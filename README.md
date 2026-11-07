@@ -254,7 +254,7 @@ the engine this recipe pinned before gr8 `4ed9e7be`, the same switch-away stop-a
 Chats survive the round trip: four chats, their next turn replayed after a full round trip to the TP=4 model
 and back, answered in 3.1-5.9 s (total response time), all four with their context intact. These test prompts
 are short, and the prompt cache's checkpoints land at 4,096-token multiples, so the replays read their prompts
-fresh - a longer chat whose last checkpoint the cache holds would answer sooner.
+fresh.
 
 Each box's part stays in its `glm53f-2x-cache` volume, so a later start of this recipe downloads nothing. To free the
 disk (about 86 GB a box, and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
