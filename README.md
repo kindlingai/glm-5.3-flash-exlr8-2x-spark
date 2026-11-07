@@ -218,6 +218,21 @@ this recipe's container on both boxes:
 docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # compose: docker compose down
 ```
 
+<!-- DRAFT: numbers TODO until switching-3model.md is final; remove this comment at fill time. -->
+Switch times to and from this recipe, measured on TODO(switching-3model.md: date, boxes, images, warm, runs each
+way): "Down" is the old model's stop on every box until all have returned; "Wait after the start returns" runs
+from the new model's start returning until it reports ready; "Total" runs from the start of the stop to ready.
+
+| Switch | Down | Wait after the start returns | Total |
+|---|---:|---:|---:|
+| GLM-5.3 (TP=4) to this recipe | TODO | TODO | TODO |
+| This recipe to GLM-5.3 (TP=4) | TODO | TODO | TODO |
+| DeepSeek-V4.1-Flash (TP=4) to this recipe | TODO | TODO | TODO |
+| This recipe to DeepSeek-V4.1-Flash (TP=4) | TODO | TODO | TODO |
+
+Chats survive the round trip: TODO(switching-3model.md: four chats, replay of their second turn after a full
+switch back, cold-vs-warm first-turn seconds).
+
 Each box's part stays in its `glm53f-2x-cache` volume, so a later start of this recipe downloads nothing. To free the
 disk (about 86 GB a box, and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
 
