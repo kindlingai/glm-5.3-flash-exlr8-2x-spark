@@ -14,8 +14,9 @@ On both boxes:
 - Docker and the NVIDIA container toolkit are installed (both come with DGX OS): `docker info | grep -i nvidia` shows
   the `nvidia` runtime.
 - Free disk where Docker keeps volumes: about 76 GB for this box's part of the model and the drafter (86 GB with
-  `TUNE=quality`, and both if the person switches between them), plus up to 64 GB for the prompt cache. Check with `df -h "$(docker info --format '{{.DockerRootDir}}')"`. With compose, you can
-  set `MODEL_CACHE_DIR` and `PROMPT_CACHE_DIR` to host directories owned by uid 1000 instead.
+  `TUNE=quality`; switching between the two keeps both, about 91 GB), plus up to 64 GB for the prompt cache. Check
+  with `df -h "$(docker info --format '{{.DockerRootDir}}')"`. With compose, you can set `MODEL_CACHE_DIR` and
+  `PROMPT_CACHE_DIR` to host directories owned by uid 1000 instead.
 - The box can reach Hugging Face for the download: `curl -sI https://huggingface.co` answers.
 - No other model runs on the box: `docker ps` shows no other model container, and `nvidia-smi` shows no GPU process.
   The weights take about 76 GB a box (86 GB with `TUNE=quality`), and gr8 does not start while another gr8 engine
@@ -64,13 +65,13 @@ Set the same values on both boxes, in `.env` (compose) or with `docker run -e`.
 | `TUNE` | the settings it sets (`knobs.sh`) | what it gives |
 |---|---|---|
 | `speed` (default) | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=262144` | the settings of README.md's card: eight requests at once, each up to 262,144 tokens |
-| `context` | the same as `speed`, with `MAX_MODEL_LEN=1048576` and `GR8_CP=1` added to `EXTRA_ENV` (context-parallel KV) | one request up to 1,048,576 tokens, with more memory free on each box; decode at short context and prefill are a little slower |
+| `context` | the same as `speed`, with `MAX_MODEL_LEN=1048576` and `GR8_CP=1` added to `EXTRA_ENV` (context-parallel KV) | one request up to 1,048,576 tokens, with more memory free on each box. Decode at short context and prefill are a little slower |
 | `quality` | `VARIANT=k4`, `SESS=4`, `CAP=262208`, `MAX_MODEL_LEN=262144` | the release's widest width (K4), four requests at once, each up to 262,144 tokens |
 
 What else `knobs.sh` does:
 
 - Any other `TUNE` value stops the boot.
-- A `VARIANT`, `SESS`, `CAP` or `MAX_MODEL_LEN` the person sets keeps its value, whatever the `TUNE`. With
+- When the person sets `VARIANT`, `SESS`, `CAP` or `MAX_MODEL_LEN`, their value wins over the `TUNE`. With
   `TUNE=context`, a `GR8_CP` already in `EXTRA_ENV` keeps its value, and any other `EXTRA_ENV` stays, with `GR8_CP=1`
   added at the end.
 - With `MENTAT=0` (the default), `PEERS` must name two addresses, or the boot stops.

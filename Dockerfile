@@ -147,8 +147,8 @@ ENV PATH=/opt/glm53f-2x/bin:/opt/gr8/bin:$PATH PYTHONPATH=/opt/gr8/frontend HOME
 ENV TUNE=speed DFLASH=1 MENTAT=0
 # The rest of the recipe, as gr8's launcher options (gr8/KNOBS.md)
 #   MODEL, DRAFTER: pinned to the Hugging Face commits measured here. The model cache is keyed by commit, so a new
-#   commit on either repo (even a README edit) changes nothing until these move. The fetch hard-links the files a new
-#   commit leaves unchanged from a cached one.
+#   commit on either repo (even a README edit) changes nothing until these move. The fetch hard-links unchanged files
+#   from a cached commit.
 # PEERS (and IPS, IPS2) have no default: they name the two boxes (knobs.sh, .env.example).
 ENV TP=2 GROUP=gr8-glm53f-2x KV_FORMAT=int4 FLASH_CACHE=aligned KV_STORE=@/etc/gr8/kv-store.yaml \
     MODEL=https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4@1a22815d178a79f78bb44e6858f0ee446ae8f0d4 \

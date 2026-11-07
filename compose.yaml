@@ -55,7 +55,7 @@ services:
     init: true
     stop_grace_period: 30s
     volumes:
-      # The model: this box's part of the release, fetched from Hugging Face on the first boot. Set
+      # This box's part of the release, fetched from Hugging Face on the first boot. Set
       # MODEL_CACHE_DIR to a host directory owned by uid 1000 to keep it outside docker.
       - ${MODEL_CACHE_DIR:-cache}:/var/lib/gr8/cache
       # The prompt cache (kv-store.yaml): checkpoints of prompts the box has prefilled, kept across restarts.

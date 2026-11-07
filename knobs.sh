@@ -21,9 +21,12 @@ esac
 # gr8 takes GLM-5.3-Flash's k2, k3 and k4 by name, and any other manifest of the release as a path. The boot fetches
 # the release's manifests/ before it reads VARIANT, so a name such as bit349 becomes that file's path in the model
 # cache, for a MODEL pinned to a commit. The handshake shows the manifest's own name.
-if [[ $VARIANT != k[234] && $VARIANT != */* && ${MODEL:-} =~ ^https://huggingface\.co/([^/@]+)/([^/@]+)@([0-9a-f]{40})$ ]]; then
-  VARIANT=${MODEL_CACHE:-/var/lib/gr8/cache}/hf/${BASH_REMATCH[1]}--${BASH_REMATCH[2]}/${BASH_REMATCH[3]}/manifests/exlr8-manifest-$VARIANT.json
+hf='^https://huggingface\.co/([^/@]+)/([^/@]+)@([0-9a-f]{40})$'
+if [[ $VARIANT != k[234] && $VARIANT != */* && ${MODEL:-} =~ $hf ]]; then
+  rel=${MODEL_CACHE:-/var/lib/gr8/cache}/hf/${BASH_REMATCH[1]}--${BASH_REMATCH[2]}/${BASH_REMATCH[3]}
+  VARIANT=$rel/manifests/exlr8-manifest-$VARIANT.json
 fi
+unset hf rel
 export VARIANT SESS CAP MAX_MODEL_LEN
 case "${MENTAT:-0}" in
   0) unset MENTAT
