@@ -2,8 +2,8 @@
 # the same.
 #   TUNE=speed (default), context or quality: all three boot the settings measured in README.md (the release's K4
 #             width, int4 KV, CAP=262208). context has no settings of its own on two boxes yet: no CAP above 262,208
-#             has been run on two. quality has none to have: K4 is the release's widest width, and the image builds
-#             only the int4 KV engine.
+#             has been run on two. quality has none to have: K4 has the most bits per weight of the release's widths,
+#             and the image builds only the int4 KV engine.
 #   MENTAT=0 (default): the two boxes from PEERS (their LAN addresses, head first) and, if set, IPS and IPS2 (each box's
 #             fabric address on the first and second ConnectX root, in PEERS order). Nothing is announced.
 #   MENTAT=1: find the other box through the host's mentat daemon (gr8's MENTAT=localhost) and announce the API in the

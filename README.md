@@ -16,7 +16,7 @@ Pick what to prioritize with one setting, `TUNE`:
 - `TUNE=speed` (the default): one request writes code at 71.1 tok/s in a first run, and a request can be up to
   262,144 tokens.
 - `TUNE=context`: the same as `speed` for now. A larger KV pool has not been measured on two boxes.
-- `TUNE=quality`: the same as `speed`. K4 is the widest width of the release.
+- `TUNE=quality`: the same as `speed`. K4 already has the most bits per weight of the release's three widths.
 
 Details: [Pick what to prioritize](#pick-what-to-prioritize), below the Quickstart.
 
@@ -170,9 +170,9 @@ nothing, and the image's defaults apply (K4, int4 KV, `CAP` 262,208, `MAX_MODEL_
 
 | `TUNE` | sets | you get | you give up | measured |
 |---|---|---|---|---|
-| `speed` (default) | nothing: the image's defaults | Decode, one stream: code / prose / structured 71.1 / 41.5 / 90.0 tok/s. Prefill 8K / 32K / 128K: 1,698 / 1,694 / 1,404 tok/s. The 128K needle test passes. | Requests up to 262,144 tokens, prompt and output together. | First numbers, below: a first run, one stream at a time, on two GX10s joined by one 200G cable. There is no benchmark card for two boxes yet. |
+| `speed` (default) | nothing: the image's defaults | Decode, one stream: code / prose / structured 71.1 / 41.5 / 90.0 tok/s. Prefill 8K / 32K / 128K: 1,698 / 1,694 / 1,404 tok/s. The 128K needle test passes. | Requests longer than 262,144 tokens, prompt and output together. | [First numbers](#first-numbers), below: a first run, one stream at a time, on two GX10s joined by one 200G cable. There is no benchmark card for two boxes yet. |
 | `context` | the same as `speed` | The same as `speed` for now. | Nothing. | Not measured: no `CAP` above 262,208 has run on two boxes. |
-| `quality` | the same as `speed` | The same as `speed`. | Nothing. | Nothing else to measure: K4 is the widest width of the release (4.0 bits per weight, the [release card](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4/blob/867580abd28d142bb4c56218bb81a752b7dea988/README.md)), and the image builds only the int4 KV engine. The release card's quality comparison against BF16 covers K4. |
+| `quality` | the same as `speed` | The same as `speed`. | Nothing. | Nothing else to measure: K4 has the most bits per weight of the release's three widths (4.0, the [release card](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4/blob/867580abd28d142bb4c56218bb81a752b7dea988/README.md)), and the image builds only the int4 KV engine. The release card's quality comparison against BF16 covers K4. |
 
 ## The prompt cache
 

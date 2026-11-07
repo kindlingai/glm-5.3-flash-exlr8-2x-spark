@@ -9,7 +9,7 @@ cannot run a check yourself, ask the person to run it and paste the output. Do n
 
 On both boxes:
 
-- It is a DGX Spark, or another GB10 box such as the ASUS GX10 (128 GB). The two boxes are joined by a 200G cable
+- The box is a DGX Spark, or another GB10 box such as the ASUS GX10 (128 GB). The two boxes are joined by a 200G cable
   between their ConnectX ports (README.md, Clustering).
 - Docker and the NVIDIA container toolkit are installed (both come with DGX OS): `docker info | grep -i nvidia` shows
   the `nvidia` runtime.
@@ -34,18 +34,19 @@ On both boxes:
   ```
 
   The second box prints `ACCEPTED from` and the head's address, and the head prints `OPEN`. The listener stops after
-  one connection, so start it again for each test. Do the same for port 7341, on the `PEERS` addresses and, if you set
-  them, the `IPS` and `IPS2` addresses. Then test once the other way: listen on the head and connect from the second
-  box. `BLOCKED` means a firewall, a wrong address, or no listener on the other box.
-- Proactive memory compaction is off: `sysctl vm.compaction_proactiveness` prints 0. If not, as root, once (README.md,
-  What you need):
+  one connection, so start it again for each test. Repeat the test for port 7341. Run it once for each address of the
+  second box: its `PEERS` address and, if you set them, its `IPS` and `IPS2` addresses. Then test once the other way:
+  listen on the head and connect from the second box. `BLOCKED` means a firewall, a wrong address, or no listener on
+  the other box.
+- Proactive memory compaction is off: `sysctl vm.compaction_proactiveness` prints 0. If it prints another value, run
+  this as root, once (README.md, What you need):
 
   ```bash
   echo 'vm.compaction_proactiveness = 0' > /etc/sysctl.d/90-gr8-no-proactive-compaction.conf
   sysctl -w vm.compaction_proactiveness=0
   ```
 
-- The fabric, one of:
+- The ConnectX addresses, one of two ways:
   - With `mentat` (README.md, Clustering) running on both boxes: `docker ps` shows the `mentat` container. Use
     `MENTAT=1` below and leave out `PEERS`, `IPS` and `IPS2`.
   - Without `mentat`: each box has one ConnectX address per PCIe root (README.md, Clustering, has a netplan example).
@@ -64,7 +65,7 @@ unless the person asks for another value.
 |---|---|---|
 | `speed` (default) | none: the image's defaults (K4, int4 KV, `CAP=262208`, `MAX_MODEL_LEN=262144`) | the settings README.md's numbers were measured with: requests up to 262,144 tokens |
 | `context` | none | the same as `speed` for now: no `CAP` above 262,208 has been measured on two boxes |
-| `quality` | none | the same as `speed`: K4 is the widest width of the release, and the image builds only the int4 KV engine |
+| `quality` | none | the same as `speed`: K4 already has the most bits per weight of the release's three widths, and the image builds only the int4 KV engine |
 
 What else `knobs.sh` does:
 
@@ -93,10 +94,10 @@ Any other gr8 launcher option works too (gr8/KNOBS.md).
 
 ## 3. Boot
 
-The commands below use `TUNE=speed`: put in the value you picked. Replace `<head>` and `<box2>` with the two boxes'
-10G LAN addresses, head first, the same on both boxes. The `IPS` and `IPS2` values are the netplan example's (README.md,
-Clustering): use yours. With `mentat`, replace `-e PEERS=... -e IPS=... -e IPS2=...` with `-e MENTAT=1`: then the head
-is the box with the lowest address.
+The commands below use `TUNE=speed`: replace it with the value you picked. Replace `<head>` and `<box2>` with the two
+boxes' 10G LAN addresses, head first, the same on both boxes. The `IPS` and `IPS2` values are the addresses of the
+netplan example (README.md, Clustering): replace them with yours. With `mentat`, replace
+`-e PEERS=... -e IPS=... -e IPS2=...` with `-e MENTAT=1`. With `MENTAT=1` the head is the box with the lowest address.
 
 1. Optional, on both boxes: print the settings the boot will use. Compare the `CAP=` and `MAX_MODEL_LEN=` lines under
    "cluster options" with the `TUNE` table above. Without `mentat`, the last line gives this box's rank: rank 0 is
@@ -112,7 +113,7 @@ is the box with the lowest address.
    `check: N failed`, and exits 1 if N is not 0. Before the first boot it lists this box's part of the model as not in
    the cache yet and the drafter as not converted yet: the first boot downloads and converts them. Any other `FAIL`
    line is a problem to fix before step 3. With `mentat` it cannot check the model's files: a box learns its rank only
-   at boot. Tell the person what it says before you change anything on the box.
+   at boot. Tell the person the `check` output before you change anything on the box.
 
    ```bash
    docker run --rm --gpus all --network host --pid host --device /dev/infiniband \
@@ -121,7 +122,7 @@ is the box with the lowest address.
      ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest check
    ```
 
-3. Start the container on both boxes within 10 minutes of each other. gr8's `JOIN_TIMEOUT` (600 s) bounds how long
+3. Start the container on both boxes within 10 minutes of each other. gr8's `JOIN_TIMEOUT` (600 s) limits how long
    the second box waits for the head to answer and, with `mentat`, how long the group takes to fill.
 
    ```bash
@@ -158,14 +159,14 @@ is the box with the lowest address.
 
 ## 4. Check that it serves
 
-Wait for `serving:` in the head's log first; the checks after it confirm it.
+Wait for `serving:` in the head's log, then run the other checks below.
 
 - On the head, `docker logs -f glm53f-2x-spark` (compose: `docker compose logs -f`) prints `serving: http://...` when
   the cluster serves.
 - On both boxes, `docker exec glm53f-2x-spark gr8 glm53f health` exits 0 when that box serves. With compose,
   `docker compose ps` shows the container as `healthy` once this check passes.
-- On the head, the API's `/health` answers 200 once the cluster serves. Before that it answers another code, or does
-  not answer: `curl -s -o /dev/null -w '%{http_code}\n' localhost:8100/health`.
+- On the head, the API's `/health` answers 200 once the cluster serves. Before that it returns another status code, or
+  does not answer: `curl -s -o /dev/null -w '%{http_code}\n' localhost:8100/health`.
 - `docker exec glm53f-2x-spark gr8 glm53f status` shows both boxes' state, engine and free memory.
 - On the head, `docker exec glm53f-2x-spark gr8 glm53f smoke` runs gr8's smoke test, 14 checks against the API. It
   ends with `14/14 passed` and exits 0 when every check passes.
@@ -198,11 +199,11 @@ Wait for `serving:` in the head's log first; the checks after it confirm it.
 | `an engine is already running` or `a g6m4 --rank process is running` | ask the person, then stop the other model (README.md, Run another model) |
 | `handshake refused: join: the head ... did not answer within 600s` | start both boxes within 600 s; check that `PEERS` is the same on both, head first, and that ports 7340 and 7341 are open (step 1) |
 | `handshake refused: checks` | a box failed its checks: the lines below it name the box and each problem. Fix them, then start both boxes again |
-| any other `handshake refused: ...`, such as `member list` | the two boxes differ in what it names: use the same `.env` or `-e` values and the same image on both, then start both boxes again |
+| any other `handshake refused: ...`, such as `member list` | the message names what differs between the boxes: use the same `.env` or `-e` values and the same image on both, then start both boxes again |
 | the image does not pull | build the image on each box, in a clone with its submodule. `docker compose build` tags it `ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest`. Without compose, `docker buildx build --platform linux/arm64 -t glm53f-2x-spark .`, then use the tag `glm53f-2x-spark` |
 
 The container's exit status is the launcher's: 0 after a stop, 1 when a rank failed or the boxes did not join, 2 for
-bad options, 4 when the boxes' handshake refused the boot. Read a log with
+bad options, 4 when the boxes' handshake refused the boot. On the box that failed, read a log with
 `docker exec glm53f-2x-spark gr8 glm53f logs supervisor` (or `shim` or `front`; with no name after `logs`, the
 engine's log). If a step fails for a reason not listed here, ask on the KindlingAI Discord (the link is at the top of
 README.md).
