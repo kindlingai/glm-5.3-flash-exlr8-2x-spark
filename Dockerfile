@@ -5,8 +5,19 @@
 #
 # The stages are gr8's own Dockerfile cut down to one engine: gr8's builds every engine for every TP width, which takes
 # far longer. Keep the two in step when the submodule moves (toolchain, Rust pin, XGrammar, runtime packages).
+#
+# ENGINE_SRC says where the binaries come from:
+#   build  (the default) the stages below compile them from the gr8/ submodule
+#   image  they are copied from GR8_IMAGE, gr8's published image of the same commit (ghcr.io/kindlingai/gr8@sha256:...),
+#          and nothing compiles. Its g6m4_flash-int4 runs TP widths 1 to 4, with the same kernels at each width as a
+#          one-width build. CI takes this path when gr8 publishes an image of the submodule's commit
+#          (.github/workflows/image.yml)
+# Either way the runtime stage gets the same files at the same paths, from the bins stage.
 ARG CUDA_VERSION=13.0.1
 ARG UBUNTU=ubuntu24.04
+ARG ENGINE_SRC=build
+# scratch stands in when ENGINE_SRC=build, which never reads it
+ARG GR8_IMAGE=scratch
 
 FROM nvidia/cuda:${CUDA_VERSION}-devel-${UBUNTU} AS toolchain
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -79,8 +90,31 @@ COPY --from=libs /out/libgr8knobs.a engine/knobs-rs/target/release/libgr8knobs.a
 COPY --from=front /out-xgrammar /opt/xgrammar
 COPY --from=xgrammar /out/libxgrammar.a /opt/xgrammar-lib/libxgrammar.a
 ENV GR8_XGRAMMAR=/opt/xgrammar GR8_XGRAMMAR_LIB=/opt/xgrammar-lib/libxgrammar.a
-RUN MODEL=flash KV_FORMAT=int4 GR8_WIDTHS=2 scripts/build.sh /out/bin \
+# The compile cache (gr8/docs/BUILD-CACHE.md) is a cache mount, which CI keeps between runs (image.yml), so a
+# rebuild compiles only what changed. When gr8's nvcc_cache.sh sets an entry's time on a hit, the entries this build did
+# not read are deleted after it, so the cache holds one build; an older gr8 keeps them all.
+ENV GR8_NVCC_CACHE_DIR=/var/cache/gr8-nvcc
+RUN --mount=type=cache,id=gr8-nvcc-flash-int4-w2,target=/var/cache/gr8-nvcc \
+    touch "$GR8_NVCC_CACHE_DIR/.start" \
+ && MODEL=flash KV_FORMAT=int4 GR8_WIDTHS=2 scripts/build.sh /out/bin \
+ && if grep -qF 'touch -c "$C"' engine/runtime/nvcc_cache.sh; then \
+      find "$GR8_NVCC_CACHE_DIR" -type f ! -newer "$GR8_NVCC_CACHE_DIR/.start" -delete; fi \
  && find /out/bin -mindepth 1 -maxdepth 1 ! -name g6m4_flash-int4 -exec rm -rf {} +
+
+# The binaries the runtime stage copies, at the paths it copies them from: built above, or from gr8's image
+FROM scratch AS bins-build
+COPY --from=engine /out/bin/g6m4_flash-int4 /bin/
+COPY --from=libs /out/g6load /out/kvman-remote /bin/
+COPY --from=libs /out/libgr8knobs.so /bin/lib/
+COPY --from=front /out/g6front-rs /bin/
+
+FROM ${GR8_IMAGE} AS gr8-image
+
+FROM scratch AS bins-image
+COPY --from=gr8-image /opt/gr8/bin/g6m4_flash-int4 /opt/gr8/bin/g6load /opt/gr8/bin/kvman-remote /opt/gr8/bin/g6front-rs /bin/
+COPY --from=gr8-image /opt/gr8/bin/lib/libgr8knobs.so /bin/lib/
+
+FROM bins-${ENGINE_SRC} AS bins
 
 FROM nvidia/cuda:${CUDA_VERSION}-runtime-${UBUNTU} AS runtime
 # python3 for the launcher and the shim (python3-yaml for the KV store file), curl + jq for the smoke test.
@@ -91,10 +125,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /opt/gr8
 COPY gr8/ .
-COPY --from=engine /out/bin/g6m4_flash-int4 bin/
-COPY --from=libs /out/g6load /out/kvman-remote bin/
-COPY --from=libs /out/libgr8knobs.so bin/lib/
-COPY --from=front /out/g6front-rs bin/
+COPY --from=bins /bin/ bin/
 COPY kv-store.yaml /etc/gr8/kv-store.yaml
 COPY entrypoint.sh knobs.sh /opt/glm53f-2x/
 COPY bin/gr8 /opt/glm53f-2x/bin/gr8
