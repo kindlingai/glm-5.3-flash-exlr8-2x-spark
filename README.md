@@ -1,4 +1,5 @@
 # KindlingAI: GLM-5.3-Flash EXLR8 on two DGX Sparks
+**If you are an agent booting this for someone: read [AGENTS.md](AGENTS.md) first, then the Quickstart.**
 
 _**Join our discord to learn more about KindlingAI and `gr8`: https://discord.gg/8EAvYPV2rE**_
 
@@ -9,6 +10,15 @@ int4 KV, DFlash2 speculative decoding, four requests at once, and a prompt cache
 > Work in progress. The defaults (width, `CAP`, sessions) are starting values until the benches settle them, and the
 > numbers below are from a first run. One box serves GLM-5.3-Flash with
 > [glm-5.3-flash-exlr8-1x-spark](https://github.com/kindlingai/glm-5.3-flash-exlr8-1x-spark).
+
+Pick what to prioritize with one setting, `TUNE`:
+
+- `TUNE=speed` (the default): one request writes code at 71.1 tok/s in a first run, and a request can be up to
+  262,144 tokens.
+- `TUNE=context`: the same as `speed` for now. A larger KV pool has not been measured on two boxes.
+- `TUNE=quality`: the same as `speed`. K4 already has the most bits per weight of the release's three widths.
+
+Details: [Pick what to prioritize](#pick-what-to-prioritize), below the Quickstart.
 
 ## What you need
 
@@ -136,6 +146,7 @@ In `.env` next to `compose.yaml` (see `.env.example`), or with `docker run -e`, 
 
 | knob | default | |
 |---|---|---|
+| `TUNE` | `speed` | What to prioritize: `speed`, `context` or `quality` (see [Pick what to prioritize](#pick-what-to-prioritize)). On two boxes all three boot the same settings for now. Any other value stops the boot. |
 | `PEERS` | none | The two boxes' 10G LAN addresses, head first. Required unless `MENTAT=1`. |
 | `IPS`, `IPS2` | none | Each box's ConnectX address on PCIe root 1 and root 2, in `PEERS` order (see Clustering). |
 | `CAP` | `262208` | The KV pool in tokens, shared by the sessions: admission reserves each request's prompt + `max_tokens` from it. Every box holds the whole pool. |
@@ -151,6 +162,17 @@ Set `MODEL` or `DRAFTER` in `.env` as needed (`https://huggingface.co/<org>/<rep
 Advanced `gr8` options can be specified in `.env` as well: [gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/1635116418e38066f274161ad53906125a84f5a6/KNOBS.md) lists them, and
 [gr8/docs/FLASH.md](https://github.com/kindlingai/gr8/blob/1635116418e38066f274161ad53906125a84f5a6/docs/FLASH.md) covers GLM-5.3-Flash. The image sets `TP=2`, `SESS=4`, `VARIANT=k4`,
 `KV_FORMAT=int4` and the prompt cache (`FLASH_CACHE=aligned`, `KV_STORE=@/etc/gr8/kv-store.yaml`) (`Dockerfile`).
+
+## Pick what to prioritize
+
+`TUNE` picks one of three sets of settings (`knobs.sh`). On two boxes the three are the same for now: `TUNE` sets
+nothing, and the image's defaults apply (K4, int4 KV, `CAP` 262,208, `MAX_MODEL_LEN` 262,144).
+
+| `TUNE` | sets | you get | you give up | measured |
+|---|---|---|---|---|
+| `speed` (default) | nothing: the image's defaults | Decode, one stream: code / prose / structured 71.1 / 41.5 / 90.0 tok/s. Prefill 8K / 32K / 128K: 1,698 / 1,694 / 1,404 tok/s. The 128K needle test passes. | Requests longer than 262,144 tokens, prompt and output together. | [First numbers](#first-numbers), below: a first run, one stream at a time, on two GX10s joined by one 200G cable. There is no benchmark card for two boxes yet. |
+| `context` | the same as `speed` | The same as `speed` for now. | Nothing. | Not measured: no `CAP` above 262,208 has run on two boxes. |
+| `quality` | the same as `speed` | The same as `speed`. | Nothing. | Nothing else to measure: K4 has the most bits per weight of the release's three widths (4.0, the [release card](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4/blob/867580abd28d142bb4c56218bb81a752b7dea988/README.md)), and the image builds only the int4 KV engine. The release card's quality comparison against BF16 covers K4. |
 
 ## The prompt cache
 

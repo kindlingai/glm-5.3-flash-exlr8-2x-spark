@@ -97,6 +97,13 @@ jobs:
           docker run --rm -e MENTAT=1 "$img" show-config --no-check | grep -E "^  (MENTAT|GROUP) "
           rc=0; err=$(docker run --rm -e MENTAT=2 "$img" show-config --no-check 2>&1) || rc=$?
           [ "$rc" = 2 ] && echo "$err" | grep -q "want 0" || { echo "MENTAT=2: exit $rc: $err"; exit 1; }
+          d=$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 "$img" show-config --no-check | grep "^digest")
+          for t in speed context quality; do  # all three boot the same cluster options for now
+            [ "$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 -e TUNE=$t "$img" show-config --no-check | grep "^digest")" = "$d" ] \
+              || { echo "TUNE=$t: not the default's cluster options"; exit 1; }
+          done
+          rc=0; err=$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 -e TUNE=fast "$img" show-config --no-check 2>&1) || rc=$?
+          [ "$rc" = 2 ] && echo "$err" | grep -q "want speed" || { echo "TUNE=fast: exit $rc: $err"; exit 1; }
           echo smoke OK
       - name: Push
         id: push

@@ -14,8 +14,8 @@ services:
       context: .
     image: ${IMAGE:-ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest}
     container_name: glm53f-2x-spark
-    # The knobs (CAP, DFLASH, MENTAT; README.md) and any other gr8 option come from .env. Unset, the image's defaults
-    # apply (Dockerfile).
+    # The knobs (TUNE, CAP, DFLASH, MENTAT; README.md) and any other gr8 option come from .env. Unset, the image's
+    # defaults apply (Dockerfile).
     env_file:
       - path: .env
         required: false
