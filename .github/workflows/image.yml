@@ -1,6 +1,8 @@
 # The recipe's image (Dockerfile: gr8's Flash int4 engine at TP=2, the front end, the loader and the launcher), built
 # on a GitHub-hosted arm64 runner. Pull requests build and smoke-test it; main and tags also push it to
 # ghcr.io/<this repo>: latest and main follow main's head, a tag gets its own name, every image gets sha-<commit>.
+# When gr8 has published an image of the submodule's commit, the binaries come from it and nothing compiles; otherwise
+# they are built, with the compile cache kept between runs.
 name: Image
 
 on:
@@ -9,6 +11,12 @@ on:
     tags: ['*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      engine:
+        description: "auto: gr8's published binaries when gr8 has an image of the submodule's commit, else a build. build: always build"
+        type: choice
+        options: [auto, build]
+        default: auto
 
 permissions:
   contents: read
@@ -29,6 +37,8 @@ jobs:
       attestations: write
     env:
       PUSH: ${{ github.event_name != 'pull_request' }}
+      # the compile cache is saved by pushes to main only: a copy saved from a tag or a pull request is read by no other ref
+      NVCC_SAVE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
@@ -39,6 +49,65 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
           df -h /
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+      - name: The engine, from gr8's image or a build
+        # gr8's CI publishes ghcr.io/kindlingai/gr8:sha-<commit> from its main. When that image exists for the submodule's
+        # commit (its revision label says so), the binaries come from it, pinned by digest, and nothing compiles
+        # (Dockerfile, ENGINE_SRC). A commit off gr8's main has no image and is built here. Checked before the login,
+        # so anonymously.
+        id: engine
+        env:
+          WANT: ${{ inputs.engine || 'auto' }}
+        run: |
+          pin=$(git rev-parse HEAD:gr8)
+          ref=ghcr.io/kindlingai/gr8:sha-${pin:0:7}
+          src=build why="gr8 has no image of $pin"
+          if [ "$WANT" = build ]; then
+            why="the engine input asks for a build"
+          elif manifest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' 2> /dev/null); then
+            image=ghcr.io/kindlingai/gr8@$(jq -r .digest <<< "$manifest")
+            rev=$(docker buildx imagetools inspect "$image" --format '{{json .Image}}' \
+              | jq -r '(.config // .["linux/arm64"].config).Labels["org.opencontainers.image.revision"]')
+            if [ "$rev" = "$pin" ]; then src=image why="$ref is $image"
+            else why="$ref is gr8 at $rev, not $pin"; fi
+          fi
+          echo "engine: $src ($why)" | tee -a "$GITHUB_STEP_SUMMARY"
+          {
+            echo "src=$src"
+            echo "pin=$pin"
+            # the layer cache: one scope a path, so a run on one path does not drop the other's layers
+            if [ "$src" = image ]; then echo "scope=image-gr8bins"; else echo "scope=image"; fi
+            echo 'args<<EOF'
+            echo "ENGINE_SRC=$src"
+            if [ "$src" = image ]; then echo "GR8_IMAGE=$image"; fi
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+      # The compile cache (gr8/docs/BUILD-CACHE.md), on the build path only: the engine stage's cache mount, kept in the
+      # Actions cache between runs and loaded into the builder by the cache dance. Every run restores the newest copy;
+      # pushes to main save one per submodule commit. The steps after the build run in reverse: the cache dance copies
+      # the mount out, then actions/cache saves it.
+      - name: Restore the compile cache, and save it after the build
+        id: nvcc-save
+        if: steps.engine.outputs.src == 'build' && env.NVCC_SAVE == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: ${{ runner.temp }}/nvcc-cache
+          key: gr8-nvcc-flash-int4-w2-${{ hashFiles('Dockerfile') }}-${{ steps.engine.outputs.pin }}
+          restore-keys: gr8-nvcc-flash-int4-w2-
+      - name: Restore the compile cache
+        if: steps.engine.outputs.src == 'build' && env.NVCC_SAVE != 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: ${{ runner.temp }}/nvcc-cache
+          key: gr8-nvcc-flash-int4-w2-${{ hashFiles('Dockerfile') }}-${{ steps.engine.outputs.pin }}
+          restore-keys: gr8-nvcc-flash-int4-w2-
+      - name: Put the compile cache in the builder's cache mount
+        if: steps.engine.outputs.src == 'build'
+        uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723  # v3.4.0
+        with:
+          cache-map: '{"${{ runner.temp }}/nvcc-cache": {"target": "/var/cache/gr8-nvcc", "id": "gr8-nvcc-flash-int4-w2"}}'
+          scratch-dir: ${{ runner.temp }}/nvcc-dance
+          # copy it back out only to save it: on main, when no copy has this key yet
+          skip-extraction: ${{ env.NVCC_SAVE != 'true' || steps.nvcc-save.outputs.cache-hit == 'true' }}
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         if: env.PUSH == 'true'
         with:
@@ -73,8 +142,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           load: true
-          cache-from: type=gha,scope=image
-          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,scope=image,mode=max' || '' }}
+          build-args: ${{ steps.engine.outputs.args }}
+          cache-from: |
+            type=gha,scope=image
+            type=gha,scope=image-gr8bins
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=gha,scope={0},mode=max', steps.engine.outputs.scope) || '' }}
       - name: Smoke test (no GPU)
         # the binaries link, the launcher resolves the recipe's options with MENTAT 0 (PEERS) and 1, and the knobs are
         # refused when wrong
