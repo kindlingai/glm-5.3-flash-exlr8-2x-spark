@@ -1,0 +1,68 @@
+{
+ "version": 1,
+ "title": "GLM-5.3-Flash",
+ "variant": "exlr8 K4, int4 KV",
+ "summary": "GLM-5.3-Flash on two GB10s at TP=2 with gr8: the K4 exlr8 release, int4 KV, DFlash2 speculative decoding, four sessions sharing a 262K-token KV pool, and a prompt cache on disk.",
+ "model": "kindlingai/glm-5.3-flash-exlr8-k2-k3-k4",
+ "hardware": "ASUS GX10 / DGX Spark (GB10)",
+ "stack": [
+  "gr8",
+  "exlr8",
+  "DFlash2",
+  "int4 KV"
+ ],
+ "default_config": "tp2",
+ "configs": [
+  {
+   "id": "tp2",
+   "label": "TP=2",
+   "nodes": 2,
+   "decode": {
+    "code": 71.4,
+    "prose": 41.4,
+    "structured": 89.3
+   },
+   "prefill": [
+    {
+     "context": 8192,
+     "tps": 1641
+    },
+    {
+     "context": 32768,
+     "tps": 1691
+    },
+    {
+     "context": 131072,
+     "tps": 1572
+    }
+   ],
+   "concurrency": [
+    {
+     "streams": 1,
+     "aggregate_tps": 54.8
+    },
+    {
+     "streams": 2,
+     "aggregate_tps": 59.4
+    },
+    {
+     "streams": 4,
+     "aggregate_tps": 71.3
+    },
+    {
+     "streams": 8,
+     "aggregate_tps": 73.7
+    }
+   ],
+   "max_context": 262144,
+   "kv_pool_tokens": 262208,
+   "max_concurrent": 4,
+   "quality": [
+    {
+     "name": "Needle recall",
+     "value": "found at 128K"
+    }
+   ]
+  }
+ ]
+}

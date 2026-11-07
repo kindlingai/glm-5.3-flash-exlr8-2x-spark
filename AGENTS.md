@@ -136,7 +136,8 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
    ```
 
    The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 86 GB, the
-   model and the drafter) and converts the drafter. README.md gives no boot time for two boxes yet.
+   model and the drafter) and converts the drafter. README.md (First numbers) gives the boot times on its card's two
+   boxes: 2,196 s the first time, 37.9 s for a restart with the cache kept.
 
    Or with compose, on both boxes:
 
@@ -170,6 +171,9 @@ Wait for `serving:` in the head's log, then run the other checks below.
 - `docker exec glm53f-2x-spark gr8 glm53f status` shows both boxes' state, engine and free memory.
 - On the head, `docker exec glm53f-2x-spark gr8 glm53f smoke` runs gr8's smoke test, 14 checks against the API. It
   ends with `14/14 passed` and exits 0 when every check passes.
+- On the head, `docker exec glm53f-2x-spark gr8 glm53f bench --hosts ''` runs gr8's bench against the API. Without
+  `--hosts ''` it stops with `FileNotFoundError: 'ssh'`. The bench reaches each box over ssh to cool and sample its
+  GPU, and the image has no ssh. With `--hosts ''` the bench does not cool the GPUs between stages.
 - The API is OpenAI-compatible, on the head's port 8100, with the model name `glm-5.3-flash` (`glm53f` also works).
   Send one chat:
 
@@ -220,9 +224,6 @@ If a step fails for a reason not listed here, ask on the KindlingAI Discord (the
 This list is the recipe's checklist of what is still to be measured. If the person measures one of these, ask them to
 post the numbers on Discord or in an issue (https://github.com/kindlingai/glm-5.3-flash-exlr8-2x-spark/issues).
 
-- README.md's numbers are one first run, one stream at a time. Several streams at once have not been measured on two
-  boxes, and there is no benchmark card for two boxes yet.
 - `TUNE=context` has no settings of its own: no `CAP` above 262,208 has been measured on two boxes.
 - The release card's quality comparison against BF16 covers K4, measured in vLLM at TP=4. K4 through gr8 at TP=2, the
   width every `TUNE` value runs here, has not been scored against BF16.
-- The boot time on two boxes: README.md gives none yet.
