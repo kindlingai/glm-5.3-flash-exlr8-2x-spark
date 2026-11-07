@@ -143,3 +143,22 @@ One stream at a time, K4, int4 KV, DFlash2, `CAP` 262,208, on two GX10s joined b
 | prefill: 8K / 32K / 128K prompt | 1,698 / 1,694 / 1,404 |
 
 The 128K needle test passes.
+
+## Run another model
+
+A box runs one model at a time, and gr8 does not start while another gr8 engine runs on it. To switch, stop and remove
+this recipe's container on both boxes:
+
+```bash
+docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # compose: docker compose down
+```
+
+Each box's part stays in its `glm53f-2x-cache` volume, so a later start of this recipe downloads nothing. To free the
+disk (about 86 GB a box, and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
+
+```bash
+docker volume rm glm53f-2x-cache glm53f-2x-prompts glm53f-2x-home   # compose: docker compose down -v
+```
+
+[gr8's Recipes](https://github.com/kindlingai/gr8#recipes) lists the other models and the number of boxes each one
+needs.
