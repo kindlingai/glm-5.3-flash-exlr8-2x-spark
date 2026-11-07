@@ -38,7 +38,7 @@ jobs:
     env:
       PUSH: ${{ github.event_name != 'pull_request' }}
       # the compile cache is saved by pushes to main only: a copy saved from a tag or a pull request is read by no other ref
-      NVCC_SAVE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      NVCC_SAVE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
