@@ -4,8 +4,9 @@
 _**Join our discord to learn more about KindlingAI and `gr8`: https://discord.gg/8EAvYPV2rE**_
 
 GLM-5.3-Flash on two DGX Sparks (GB10, 128 GB each) at TP=2, served by [gr8](https://github.com/kindlingai/gr8) from
-the K4 width of [kindlingai/glm-5.3-flash-exlr8-k2-k3-k4](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4):
-int4 KV, DFlash2 speculative decoding, four requests at once, and a prompt cache on disk.
+the `bit349` manifest of [kindlingai/glm-5.3-flash-exlr8-k2-k3-k4](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4)
+(K3 with K4 where it lowers KL most, about 3.49 bits a routed weight): int4 KV, DFlash2 speculative decoding, eight
+requests at once sharing a 2,097,152-token KV pool, and a prompt cache on disk.
 
 ![GLM-5.3-Flash on two GB10s: decode, prefill and concurrency](docs/card.png)
 
@@ -13,16 +14,15 @@ int4 KV, DFlash2 speculative decoding, four requests at once, and a prompt cache
 
 *Four requests decoding at once on two GB10s, played at 2x speed.*
 
-> Work in progress. The defaults (width, `CAP`, sessions) are starting values until the benches settle them, and the
-> numbers below are from first runs. One box serves GLM-5.3-Flash with
-> [glm-5.3-flash-exlr8-1x-spark](https://github.com/kindlingai/glm-5.3-flash-exlr8-1x-spark).
+One box serves GLM-5.3-Flash with [glm-5.3-flash-exlr8-1x-spark](https://github.com/kindlingai/glm-5.3-flash-exlr8-1x-spark).
 
 Pick what to prioritize with one setting, `TUNE`:
 
-- `TUNE=speed` (the default): one request writes code at 71.1 tok/s in a first run, and a request can be up to
-  262,144 tokens.
-- `TUNE=context`: the same as `speed` for now. A larger KV pool has not been measured on two boxes.
-- `TUNE=quality`: the same as `speed`. K4 already has the most bits per weight of the release's three widths.
+- `TUNE=speed` (the default): one request writes code at 75.0 tok/s, eight requests decode at 73.2 tok/s in total,
+  and a request can be up to 262,144 tokens.
+- `TUNE=context`: a request can be up to 1,048,576 tokens, with context-parallel KV. A 1,015,102-token prompt found
+  its needle in 1,542 s.
+- `TUNE=quality`: the release's K4 width, four requests at once, each up to 262,144 tokens.
 
 Details: [Pick what to prioritize](#pick-what-to-prioritize), below the Quickstart.
 
@@ -30,7 +30,7 @@ Details: [Pick what to prioritize](#pick-what-to-prioritize), below the Quicksta
 
 - Two Sparks joined by a 200G cable between their ConnectX ports (see Clustering).
 - Docker and the NVIDIA container toolkit on each box (both come with DGX OS).
-- No other model running on either box: the weights take about 86 GB a box.
+- No other model running on either box: the weights take about 76 GB a box (86 GB with `TUNE=quality`).
 - A LAN between the two boxes, with TCP ports 7340 and 7341 open.
 - Proactive memory compaction off on each box, once, as root (it holds across reboots):
 
@@ -99,7 +99,7 @@ docker logs -f glm53f-2x-spark     # on the head: ready at "serving: http://..."
 With `mentat` running, replace the `PEERS`, `IPS` and `IPS2` settings with `-e MENTAT=1`: then the head is the box
 with the lowest address.
 
-The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 86 GB, the model
+The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 76 GB, the model
 and the drafter) and converts the drafter. The boxes wait for each other, so start both within a few minutes.
 
 The API is OpenAI's on the head's port 8100, and the model's name is `glm-5.3-flash` (`glm53f` also works):
@@ -159,33 +159,38 @@ In `.env` next to `compose.yaml` (see `.env.example`), or with `docker run -e`, 
 
 | knob | default | |
 |---|---|---|
-| `TUNE` | `speed` | What to prioritize: `speed`, `context` or `quality` (see [Pick what to prioritize](#pick-what-to-prioritize)). On two boxes all three boot the same settings for now. Any other value stops the boot. |
+| `TUNE` | `speed` | What to prioritize: `speed`, `context` or `quality` (see [Pick what to prioritize](#pick-what-to-prioritize)). It sets the defaults of `VARIANT`, `SESS`, `CAP` and `MAX_MODEL_LEN`. Any other value stops the boot. |
 | `PEERS` | none | The two boxes' 10G LAN addresses, head first. Required unless `MENTAT=1`. |
 | `IPS`, `IPS2` | none | Each box's ConnectX address on PCIe root 1 and root 2, in `PEERS` order (see Clustering). |
-| `CAP` | `262208` | The KV pool in tokens, shared by the sessions: admission reserves each request's prompt + `max_tokens` from it. Every box holds the whole pool. |
-| `MAX_MODEL_LEN` | `262144` | The longest single request, prompt and output together. At most `CAP` less the guard rows. |
+| `VARIANT` | `bit349` (`k4` with `TUNE=quality`) | The release's width manifest: `bit349`, `k4`, or another of the release's manifests (its [release card](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4/blob/1a22815d178a79f78bb44e6858f0ee446ae8f0d4/README.md) lists them). A width not in the cache yet is downloaded at boot. |
+| `SESS` | `8` (`4` with `TUNE=quality`) | The requests that decode at once, 1 to 8. A request alone drafts with DFlash2. |
+| `CAP` | `2097152` (`262208` with `TUNE=quality`) | The KV pool in tokens, shared by the sessions: admission reserves each request's prompt + `max_tokens` from it. Every box holds the whole pool. |
+| `MAX_MODEL_LEN` | `262144` (`1048576` with `TUNE=context`) | The longest single request, prompt and output together. At most `CAP` less the guard rows, and at most 1,048,576. |
 | `DFLASH` | `1` | `1`: a request alone drafts with [DFlash2](https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2) (CC BY-NC-ND 4.0), downloaded and converted on the first boot. `0`: MTP only, nothing downloaded. |
 | `MENTAT` | `0` | `1`: the boxes find each other and their ConnectX addresses through the host's `mentat` daemon, and register the API, in group `GROUP` (`gr8-glm53f-2x`). |
 
 The image pins the weights to Hugging Face commits: the release at
-[`867580a`](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4/tree/867580abd28d142bb4c56218bb81a752b7dea988)
+[`1a22815`](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4/tree/1a22815d178a79f78bb44e6858f0ee446ae8f0d4)
 and the drafter at [`bf582e4`](https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2/tree/bf582e4eacc1810f76656d1811693ff6c6737d2a).
-Set `MODEL` or `DRAFTER` in `.env` as needed (`https://huggingface.co/<org>/<repo>@<commit>`).
+Set `MODEL` or `DRAFTER` in `.env` as needed (`https://huggingface.co/<org>/<repo>@<commit>`). gr8 knows `k2`, `k3` and
+`k4` by name; `knobs.sh` turns another `VARIANT` name into its manifest's path in the model cache when `MODEL` names a
+commit. With a `MODEL` that follows a branch, set `VARIANT` to the manifest's path.
 
-Advanced `gr8` options can be specified in `.env` as well: [gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/4ed9e7bed53d6ed23ba1c4a32c993ccc3850af96/KNOBS.md) lists them, and
-[gr8/docs/FLASH.md](https://github.com/kindlingai/gr8/blob/4ed9e7bed53d6ed23ba1c4a32c993ccc3850af96/docs/FLASH.md) covers GLM-5.3-Flash. The image sets `TP=2`, `SESS=4`, `VARIANT=k4`,
-`KV_FORMAT=int4` and the prompt cache (`FLASH_CACHE=aligned`, `KV_STORE=@/etc/gr8/kv-store.yaml`) (`Dockerfile`).
+Advanced `gr8` options can be specified in `.env` as well: [gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/48d43497f8261fc9f7a1893d1554ca4b29b35e81/KNOBS.md) lists them, and
+[gr8/docs/FLASH.md](https://github.com/kindlingai/gr8/blob/48d43497f8261fc9f7a1893d1554ca4b29b35e81/docs/FLASH.md) covers GLM-5.3-Flash. The image sets `TP=2`, `KV_FORMAT=int4` and the
+prompt cache (`FLASH_CACHE=aligned`, `KV_STORE=@/etc/gr8/kv-store.yaml`) (`Dockerfile`); `TUNE` sets the rest
+(`knobs.sh`).
 
 ## Pick what to prioritize
 
-`TUNE` picks one of three sets of settings (`knobs.sh`). On two boxes the three are the same for now: `TUNE` sets
-nothing, and the image's defaults apply (K4, int4 KV, `CAP` 262,208, `MAX_MODEL_LEN` 262,144).
+`TUNE` sets `VARIANT`, `SESS`, `CAP` and `MAX_MODEL_LEN` (`knobs.sh`), and `context` also turns on context-parallel
+KV. When you set one of them yourself, your value wins. Measured on two GX10s joined by one 200G cable.
 
 | `TUNE` | sets | you get | you give up | measured |
 |---|---|---|---|---|
-| `speed` (default) | nothing: the image's defaults | Decode, one stream: code / prose / structured 71.1 / 41.5 / 90.0 tok/s. Prefill 8K / 32K / 128K: 1,698 / 1,694 / 1,404 tok/s. The 128K needle test passes. | Requests longer than 262,144 tokens, prompt and output together. | [First numbers](#first-numbers), below: a first run, one stream at a time, on two GX10s joined by one 200G cable. The card at the top is a separate bench run of the same defaults, with 1 to 8 streams. |
-| `context` | the same as `speed` | The same as `speed` for now. | Nothing. | Not measured: no `CAP` above 262,208 has run on two boxes. |
-| `quality` | the same as `speed` | The same as `speed`. | Nothing. | Nothing else to measure: K4 has the most bits per weight of the release's three widths (4.0, the [release card](https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4/blob/867580abd28d142bb4c56218bb81a752b7dea988/README.md)), and the image builds only the int4 KV engine. The release card's quality comparison against BF16 covers K4. |
+| `speed` (default) | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=262144` | Decode, one stream: code / prose / structured 75.0 / 41.8 / 93.3 tok/s. Eight streams: 73.2 tok/s in total. Prefill 8K / 32K / 128K: 1,663 / 1,712 / 1,438 tok/s. 13.3-13.6 GiB free a box at idle. | Requests longer than 262,144 tokens. Some quality against K4: mean KL against BF16 0.397, K4 0.384 (the release card). | The card at the top. |
+| `context` | the same as `speed`, with `MAX_MODEL_LEN=1048576` and `GR8_CP=1` in `EXTRA_ENV` | One request up to 1,048,576 tokens. Context-parallel KV keeps the first 32,768 tokens of the KV on both boxes and each later 64-token page on one box, so each box has about 1.8 GiB more free: 15.1-15.3 GiB at idle. A 1,015,102-token prompt found its needle in 1,542 s, and free memory stayed above 15.4 GiB a box. At a 156K context one stream decodes 7% faster (39.2 against 36.5 tok/s). | Decode 1-3% slower at short context. Prefill 3% / 3% / 10% slower at 8K / 32K / 128K. Eight streams 2% slower in total. T=0 output is not the same bits as with it off. gr8 marks context-parallel KV for GLM-5.3-Flash experimental. | The memory and the needle on this image. The speed differences on test builds with the same widths, `SESS` and `CAP`. |
+| `quality` | `VARIANT=k4`, `SESS=4`, `CAP=262208`, `MAX_MODEL_LEN=262144` | The release's widest width, K4 (4.0 bits a routed weight, mean KL against BF16 0.384). Decode, one stream: code / prose / structured 68.8 / 40.2 / 88.0 tok/s. Prefill 8K / 32K / 128K: 1,742 / 1,625 / 1,386 tok/s. 13.2-13.4 GiB free a box at idle. | Half the sessions, an eighth of the KV pool, and about 10 GB more weights a box. Decode 4-8% slower than `speed`. Eight streams: 66.3 tok/s in total. | One run of the bench's decode, concurrency and prefill stages on this image, run as for the card. Its first boot downloaded 15 GB a box of K4 that `bit349` does not use. |
 
 ## The prompt cache
 
@@ -194,32 +199,22 @@ A prompt's prefill keeps a checkpoint at its last multiple of 4,096 tokens in ea
 rest, and the output is the same bit for bit. Checkpoints outlive restarts (a new engine build, release or `CAP` starts
 empty).
 
-## First numbers
+## How the card was made
 
-One stream at a time, K4, int4 KV, DFlash2, `CAP` 262,208, on two GX10s joined by one 200G cable:
+The card at the top is one run of gr8's bench at its default level, in this image on two GX10s joined by one 200G
+cable, with `TUNE=speed` and no other knob set. The run did not cool the GPUs between stages (`--hosts ''`, below).
+The data is in `kindling.json`, from `python3 gr8/bench/bench.py kindling REPORT.json --out kindling.json
+--config-id tp2`, and the card is `python3 gr8/bench/gif.py card kindling.json`. The GIF is the run's 4-stream
+recording (`--record DIR`), drawn by `gif.py` at 2x speed. The smoke test passed 14 of 14. The 128K needle test
+passed in 8 of 8 runs (`--stages correct --needle-seed N`, N from 1 to 8).
 
-| | tok/s |
-|---|---|
-| decode: code / prose / structured | 71.1 / 41.5 / 90.0 |
-| prefill: 8K / 32K / 128K prompt | 1,698 / 1,694 / 1,404 |
-
-The 128K needle test passes.
-
-The card at the top is one run of gr8's bench at its default level. It ran in the image on two GB10s with the image's
-defaults. The data is in `kindling.json`. To regenerate it, run
-`python3 gr8/bench/bench.py kindling REPORT.json --out kindling.json --config-id tp2`. The smoke test passed 14 of 14.
-Boot: measured on a local build of this recipe at `319ed60` with gr8 `4ed9e7b` (a two-box DGX Spark set,
-2026-11-07; the download that puts the weights on disk is separate — it is what the previous image's numbers below
-counted). The first boot with the weights already on disk reached serving 26.5 s after the run's start, of which
-24.8 s came after the start command returned; a restart with the cache kept took 24.8 s from the start command
-returning. The two measured waits after the start commands returned both rounded to 24.8 s. The boot is loading the about
-86 GB of weights and starting the engines (the pack is loaded 21.2 s into the boot, the graphs captured at 22.1 s). On the previous image the first boot took 2,196 s including the download, of which 2,131 s went to
-downloading the model and the drafter and converting the drafter, and a restart with the cache kept took 37.9 s.
+Boot, with the weights already in the cache: a restart took 30.8 s from the start command on the head to `/health`
+answering 200, with the second box started first. The first boot on a new release commit took 145 s with nothing to
+download: it links the unchanged files from the cached commit and checks them.
 
 To run the bench in the image, on the head: `docker exec glm53f-2x-spark gr8 glm53f bench --hosts ''`. Without
 `--hosts ''` it stops with `FileNotFoundError: 'ssh'`. The bench reaches each box over ssh to cool and sample its GPU,
-and the image has no ssh. With `--hosts ''` the bench does not cool the GPUs between stages. The card's run did
-not cool them either.
+and the image has no ssh. With `--hosts ''` the bench does not cool the GPUs between stages.
 
 ## Run another model
 
@@ -233,8 +228,8 @@ docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # compose: docker com
 The stop ends the engine's orderly quit, as in the Quickstart, so it takes a moment before the containers go.
 
 Switch times to and from this recipe, measured on 2026-11-07, warm, two runs each way: this recipe on a two-box
-DGX Spark pair, measured on a local build of the recipe at `319ed60` with gr8 `4ed9e7b` (the engine this recipe
-pins after its gr8 bump); GLM-5.3 and DeepSeek-V4.1-Flash at TP=4 on their four-box set (two DGX Sparks, two Gen4
+DGX Spark pair, measured on a local build of the recipe at `319ed60` with gr8 `4ed9e7b`, K4, `SESS=4` and `CAP`
+262,208 (the defaults before `TUNE` set them); GLM-5.3 and DeepSeek-V4.1-Flash at TP=4 on their four-box set (two DGX Sparks, two Gen4
 GB10 boxes). "Down" is the old model's stop-and-remove on every box, run in parallel (`docker compose down`),
 until all have returned; "Wait after the start returns" runs from the new model's start returning until it
 reports ready; "Total" runs from the start of the stop to ready.
@@ -248,7 +243,7 @@ reports ready; "Total" runs from the start of the stop to ready.
 
 The first boot of this recipe after its files were in place took 26.5 s from the run's start to ready, of which
 24.8 s came after the start command returned; the warm restart's wait also rounded to 24.8 s. The boot is loading
-the about 86 GB of weights and starting the engines. (The 31.3 s row above includes stopping GLM-5.3 first.) On
+the K4 weights, about 86 GB, and starting the engines. (The 31.3 s row above includes stopping GLM-5.3 first.) On
 the engine this recipe pinned before gr8 `4ed9e7be`, the same switch-away stop-and-remove phase took about 13-14 s.
 
 Chats survive the round trip: four chats, their next turn replayed after a full round trip to the TP=4 model
@@ -257,7 +252,7 @@ are short, and the prompt cache's checkpoints land at 4,096-token multiples, so 
 fresh.
 
 Each box's part stays in its `glm53f-2x-cache` volume, so a later start of this recipe downloads nothing. To free the
-disk (about 86 GB a box, and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
+disk (about 76 GB a box, more after a `TUNE=quality` boot, and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
 
 ```bash
 docker volume rm glm53f-2x-cache glm53f-2x-prompts glm53f-2x-home   # compose: docker compose down -v

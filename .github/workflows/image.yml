@@ -169,11 +169,18 @@ jobs:
           docker run --rm -e MENTAT=1 "$img" show-config --no-check | grep -E "^  (MENTAT|GROUP) "
           rc=0; err=$(docker run --rm -e MENTAT=2 "$img" show-config --no-check 2>&1) || rc=$?
           [ "$rc" = 2 ] && echo "$err" | grep -q "want 0" || { echo "MENTAT=2: exit $rc: $err"; exit 1; }
+          # each TUNE sets its options (knobs.sh), and an option set on its own keeps its value
+          want() {  # want "ENV..." "LINE...": show-config with ENV prints each LINE
+            local out; out=$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 $(printf -- '-e %s ' $1) "$img" show-config --no-check)
+            for l in "${@:2}"; do grep -qE "$l" <<< "$out" || { echo "$1: no line matching '$l'"; exit 1; }; done
+          }
           d=$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 "$img" show-config --no-check | grep "^digest")
-          for t in speed context quality; do  # all three boot the same cluster options for now
-            [ "$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 -e TUNE=$t "$img" show-config --no-check | grep "^digest")" = "$d" ] \
-              || { echo "TUNE=$t: not the default's cluster options"; exit 1; }
-          done
+          [ "$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 -e TUNE=speed "$img" show-config --no-check | grep "^digest")" = "$d" ] \
+            || { echo "TUNE=speed: not the default's cluster options"; exit 1; }
+          want TUNE=speed '^  VARIANT +[^ ]*/manifests/exlr8-manifest-bit349\.json' '^  SESS +8 ' '^  CAP +2097152 ' '^  MAX_MODEL_LEN +262144 '
+          want TUNE=context '^  VARIANT +[^ ]*/manifests/exlr8-manifest-bit349\.json' '^  CAP +2097152 ' '^  MAX_MODEL_LEN +1048576 ' 'GR8_CP=1'
+          want TUNE=quality '^  VARIANT +k4' '^  SESS +4 ' '^  CAP +262208 ' '^  MAX_MODEL_LEN +262144 '
+          want "TUNE=quality CAP=131136 MAX_MODEL_LEN=131072" '^  CAP +131136 ' '^  MAX_MODEL_LEN +131072 '
           rc=0; err=$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 -e TUNE=fast "$img" show-config --no-check 2>&1) || rc=$?
           [ "$rc" = 2 ] && echo "$err" | grep -q "want speed" || { echo "TUNE=fast: exit $rc: $err"; exit 1; }
           echo smoke OK

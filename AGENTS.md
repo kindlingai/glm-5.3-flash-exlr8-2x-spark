@@ -13,12 +13,14 @@ On both boxes:
   between their ConnectX ports (README.md, Clustering).
 - Docker and the NVIDIA container toolkit are installed (both come with DGX OS): `docker info | grep -i nvidia` shows
   the `nvidia` runtime.
-- Free disk where Docker keeps volumes: about 86 GB for this box's part of the model and the drafter, plus up to
-  64 GB for the prompt cache. Check with `df -h "$(docker info --format '{{.DockerRootDir}}')"`. With compose, you can
-  set `MODEL_CACHE_DIR` and `PROMPT_CACHE_DIR` to host directories owned by uid 1000 instead.
+- Free disk where Docker keeps volumes: about 76 GB for this box's part of the model and the drafter (86 GB with
+  `TUNE=quality`; switching between the two keeps both, about 91 GB), plus up to 64 GB for the prompt cache. Check
+  with `df -h "$(docker info --format '{{.DockerRootDir}}')"`. With compose, you can set `MODEL_CACHE_DIR` and
+  `PROMPT_CACHE_DIR` to host directories owned by uid 1000 instead.
 - The box can reach Hugging Face for the download: `curl -sI https://huggingface.co` answers.
 - No other model runs on the box: `docker ps` shows no other model container, and `nvidia-smi` shows no GPU process.
-  The weights take about 86 GB a box, and gr8 does not start while another gr8 engine runs on the box.
+  The weights take about 76 GB a box (86 GB with `TUNE=quality`), and gr8 does not start while another gr8 engine
+  runs on the box.
 - TCP ports 7340 and 7341 are open between the two boxes: no firewall blocks them. Check this before the boot, while
   nothing listens on those ports. `nc` may not be installed, so use `python3` and bash. On the second box, listen on
   one port:
@@ -58,18 +60,20 @@ On both boxes:
 
 Set the same values on both boxes, in `.env` (compose) or with `docker run -e`.
 
-`TUNE` picks what to prioritize. On two boxes all three values boot the same settings for now, so use the default
-unless the person asks for another value.
+`TUNE` picks what to prioritize. Use the default unless the person asks for another value.
 
 | `TUNE` | the settings it sets (`knobs.sh`) | what it gives |
 |---|---|---|
-| `speed` (default) | none: the image's defaults (K4, int4 KV, `CAP=262208`, `MAX_MODEL_LEN=262144`) | the settings README.md's numbers were measured with: requests up to 262,144 tokens |
-| `context` | none | the same as `speed` for now: no `CAP` above 262,208 has been measured on two boxes |
-| `quality` | none | the same as `speed`: K4 already has the most bits per weight of the release's three widths, and the image builds only the int4 KV engine |
+| `speed` (default) | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=262144` | the settings of README.md's card: eight requests at once, each up to 262,144 tokens |
+| `context` | the same as `speed`, with `MAX_MODEL_LEN=1048576` and `GR8_CP=1` added to `EXTRA_ENV` (context-parallel KV) | one request up to 1,048,576 tokens, with more memory free on each box. Decode at short context and prefill are a little slower |
+| `quality` | `VARIANT=k4`, `SESS=4`, `CAP=262208`, `MAX_MODEL_LEN=262144` | the release's widest width (K4), four requests at once, each up to 262,144 tokens |
 
 What else `knobs.sh` does:
 
 - Any other `TUNE` value stops the boot.
+- When the person sets `VARIANT`, `SESS`, `CAP` or `MAX_MODEL_LEN`, their value wins over the `TUNE`. With
+  `TUNE=context`, a `GR8_CP` already in `EXTRA_ENV` keeps its value, and any other `EXTRA_ENV` stays, with `GR8_CP=1`
+  added at the end.
 - With `MENTAT=0` (the default), `PEERS` must name two addresses, or the boot stops.
 
 Every knob:
@@ -79,8 +83,10 @@ Every knob:
 | `PEERS` | the two boxes' 10G LAN addresses, comma-separated, head first, the same list on both boxes | none: required unless `MENTAT=1` |
 | `IPS`, `IPS2` | each box's ConnectX address on PCIe root 1 and root 2, in `PEERS` order | none |
 | `TUNE` | `speed`, `context`, `quality` | `speed` |
-| `CAP` | the KV pool in tokens, shared by the sessions, a multiple of 64; about 5 KB of memory a token. Every box holds the whole pool | `262208` |
-| `MAX_MODEL_LEN` | the longest single request, prompt and output together: at most `CAP` less the guard rows, and at most 1,048,576 | `262144` |
+| `VARIANT` | the release's width manifest: `bit349` (K3 with K4 where it lowers KL most, about 3.49 bits a routed weight), `k4`, or another of the release's manifests | `TUNE`'s: `bit349`, or `k4` for `quality` |
+| `SESS` | the requests that decode at once, 1 to 8 | `TUNE`'s: `8`, or `4` for `quality` |
+| `CAP` | the KV pool in tokens, shared by the sessions, a multiple of 64; about 5 KB of memory a token. Every box holds the whole pool | `TUNE`'s: `2097152`, or `262208` for `quality` |
+| `MAX_MODEL_LEN` | the longest single request, prompt and output together: at most `CAP` less the guard rows, and at most 1,048,576 | `TUNE`'s: `262144`, or `1048576` for `context` |
 | `DFLASH` | `1`: a request alone drafts with the DFlash2 drafter (licence CC BY-NC-ND 4.0), downloaded and converted on the first boot. `0`: MTP only, nothing downloaded | `1` |
 | `MENTAT` | `0`: the two boxes in `PEERS`. `1`: the boxes find each other and their ConnectX addresses through the host's `mentat` daemon, and register the API, in group `GROUP` | `0` |
 | `GROUP` | the `mentat` group, with `MENTAT=1` | `gr8-glm53f-2x` |
@@ -135,11 +141,8 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
      ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest
    ```
 
-   The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 86 GB, the
-   model and the drafter) and converts the drafter. README.md (First numbers) gives the boot times, measured on a
-   two-box DGX Spark set on a local build of this recipe at `319ed60` with gr8 `4ed9e7b`: 26.5 s to serving the
-   first time (weights already on disk; 24.8 s of it after the start command returned), and 24.8 s for a restart
-   with the cache kept, counted the same way (previous image: 2,196 s including the download, and 37.9 s).
+   The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 76 GB, the
+   model and the drafter) and converts the drafter. README.md (How the card was made) gives the boot times.
 
    Or with compose, on both boxes:
 
@@ -226,6 +229,6 @@ If a step fails for a reason not listed here, ask on the KindlingAI Discord (the
 This list is the recipe's checklist of what is still to be measured. If the person measures one of these, ask them to
 post the numbers on Discord or in an issue (https://github.com/kindlingai/glm-5.3-flash-exlr8-2x-spark/issues).
 
-- `TUNE=context` has no settings of its own: no `CAP` above 262,208 has been measured on two boxes.
-- The release card's quality comparison against BF16 covers K4, measured in vLLM at TP=4. K4 through gr8 at TP=2, the
-  width every `TUNE` value runs here, has not been scored against BF16.
+- The release card's KL against BF16 (`bit349` 0.397, `k4` 0.384) was not measured through gr8 at TP=2. Neither
+  width has been scored against BF16 here.
+- `TUNE=context` with several long requests at once: the measured runs had one long prompt beside short requests.

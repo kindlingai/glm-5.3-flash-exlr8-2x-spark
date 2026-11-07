@@ -136,20 +136,22 @@ RUN mkdir -p /var/lib/gr8/home /var/lib/gr8/cache /var/lib/gr8/prompts \
 ENV PATH=/opt/glm53f-2x/bin:/opt/gr8/bin:$PATH PYTHONPATH=/opt/gr8/frontend HOME=/tmp GR8_CONTAINER=1 GR8_MODEL=glm53f \
     GR8_WORK_DIR=/var/lib/gr8/home MODEL_CACHE=/var/lib/gr8/cache PY=/usr/bin/python3 FRONT_BIN=/opt/gr8/bin/g6front-rs
 # The recipe's knobs (README.md, "Knobs"). Set any of them in .env, or with docker run -e, to override.
-#   TUNE           speed, context or quality: all three boot K4, int4 KV and this CAP on two boxes for now (knobs.sh)
-#   CAP            the KV pool in tokens, shared by the sessions (about 5 KB of memory a token)
-#   MAX_MODEL_LEN  the longest single request, prompt and output together
+#   TUNE           speed, context or quality: sets VARIANT, SESS, CAP and MAX_MODEL_LEN unless set (knobs.sh), and
+#                  context-parallel KV for context
+#   CAP            the KV pool in tokens, shared by the sessions: 2,097,152 for speed and context, 262,208 for quality
+#   MAX_MODEL_LEN  the longest single request, prompt and output together: 262,144, or 1,048,576 for context
+#   SESS           the requests that decode at once: 8, or 4 for quality
+#   VARIANT        the release's width manifest: bit349 (about 3.49 bits a routed weight), or k4 for quality
 #   DFLASH         1: a request alone drafts with the DFlash2 drafter (fetched and converted on the first boot); 0: MTP only
 #   MENTAT         0: the two boxes in PEERS; 1: find each other through mentat (knobs.sh)
-ENV TUNE=speed CAP=262208 MAX_MODEL_LEN=262144 DFLASH=1 MENTAT=0
+ENV TUNE=speed DFLASH=1 MENTAT=0
 # The rest of the recipe, as gr8's launcher options (gr8/KNOBS.md)
 #   MODEL, DRAFTER: pinned to the Hugging Face commits measured here. The model cache is keyed by commit, so a new
-#   commit on either repo (even a README edit) changes nothing until these move.
-#   SESS:    four requests decode at once; a request alone drafts with DFlash2
-#   VARIANT: the release's K4 width, about 78 GB of experts a box
+#   commit on either repo (even a README edit) changes nothing until these move. The fetch hard-links unchanged files
+#   from a cached commit.
 # PEERS (and IPS, IPS2) have no default: they name the two boxes (knobs.sh, .env.example).
-ENV TP=2 SESS=4 GROUP=gr8-glm53f-2x VARIANT=k4 KV_FORMAT=int4 FLASH_CACHE=aligned KV_STORE=@/etc/gr8/kv-store.yaml \
-    MODEL=https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4@867580abd28d142bb4c56218bb81a752b7dea988 \
+ENV TP=2 GROUP=gr8-glm53f-2x KV_FORMAT=int4 FLASH_CACHE=aligned KV_STORE=@/etc/gr8/kv-store.yaml \
+    MODEL=https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4@1a22815d178a79f78bb44e6858f0ee446ae8f0d4 \
     DRAFTER=https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2@bf582e4eacc1810f76656d1811693ff6c6737d2a
 USER 1000:1000
 ENTRYPOINT ["/opt/glm53f-2x/entrypoint.sh"]
