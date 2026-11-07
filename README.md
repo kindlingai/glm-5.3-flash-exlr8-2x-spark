@@ -59,20 +59,22 @@ ConnectX IP addresses with `IPS` (PCIe root 1) and `IPS2` (PCIe root 2), in the 
 
 ## Quickstart
 
-Run the published image on both boxes with the same settings. Without `mentat`, this names the boxes as in the netplan
-example above:
+Run the published image on both boxes with the same settings. Without `mentat`, replace `<head>` and `<box2>` with the
+two boxes' 10G LAN addresses, the same list on both boxes. The head is the first box in `PEERS`: it serves the API on
+port 8100. `IPS` and `IPS2` are the ConnectX addresses from the netplan example above: use yours.
 
 ```bash
 docker run -d --name glm53f-2x-spark --gpus all --network host --pid host --device /dev/infiniband \
   --ulimit memlock=-1 --ulimit core=0 --cap-drop ALL --cap-add IPC_LOCK \
   --security-opt no-new-privileges --read-only --tmpfs /tmp:size=1g,mode=1777 --init --oom-score-adj 1000 \
-  -e PEERS=192.168.100.10,192.168.100.11 -e IPS=10.0.0.1,10.0.0.2 -e IPS2=10.0.1.1,10.0.1.2 \
+  -e PEERS=<head>,<box2> -e IPS=10.0.0.1,10.0.0.2 -e IPS2=10.0.1.1,10.0.1.2 \
   -v glm53f-2x-cache:/var/lib/gr8/cache -v glm53f-2x-prompts:/var/lib/gr8/prompts -v glm53f-2x-home:/var/lib/gr8/home \
   ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest
 docker logs -f glm53f-2x-spark     # on the head: ready at "serving: http://..."
 ```
 
-With `mentat` running, replace the three addresses with `-e MENTAT=1`.
+With `mentat` running, replace the `PEERS`, `IPS` and `IPS2` settings with `-e MENTAT=1`: then the head is the box
+with the lowest address.
 
 The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 86 GB, the model
 and the drafter) and converts the drafter. The boxes wait for each other, so start both within a few minutes.
