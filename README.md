@@ -89,6 +89,16 @@ docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # on both boxes
 
 `:latest` is main. Each commit is also published as `sha-<commit>`, and each tag under its name.
 
+## Help
+
+Ask on Discord (https://discord.gg/8EAvYPV2rE) or open an issue in this repo
+(https://github.com/kindlingai/glm-5.3-flash-exlr8-2x-spark/issues). Say which step failed, and include:
+
+- the command you ran, and the end of `docker logs glm53f-2x-spark`, before you remove the container;
+- if it still runs, `docker exec glm53f-2x-spark gr8 glm53f status`.
+
+Remove addresses and hostnames before you post.
+
 ## Run it with compose
 
 `compose.yaml` runs the same image with the same settings and reads `PEERS` and the knobs from `.env`. On both boxes:
