@@ -232,10 +232,9 @@ reports ready; "Total" runs from the start of the stop to ready.
 | DeepSeek-V4.1-Flash (TP=4) to this recipe | 3.2-4.2 s | 23.8-24.0 s | 28.5 / 29.3 s |
 | This recipe to DeepSeek-V4.1-Flash (TP=4) | 3.1-3.6 s | 34.0-35.4 s | 39.7 / 40.2 s |
 
-The first boot of this recipe after its files are in place cost the same as the restart: 26.5 s from the run's
-start to ready, of which 24.8 s came after the start command returned - the same 24.8 s as the warm restart's
-wait - because the boot is loading the about 86 GB of weights and starting the engines, and the first boot adds
-nothing the restart avoids. (The 31.3 s row above includes stopping GLM-5.3 first.) On the engine this recipe
+The first boot of this recipe after its files were in place took 26.5 s from the run's start to ready, of which
+24.8 s came after the start command returned; the warm restart's wait also rounded to 24.8 s. The boot is loading
+the about 86 GB of weights and starting the engines. (The 31.3 s row above includes stopping GLM-5.3 first.) On the engine this recipe
 pinned before gr8 `4ed9e7be`, the same switch-away stop-and-remove phase took about 13-14 s.
 
 Chats survive the round trip: four chats, their next turn replayed after a full round trip to the TP=4 model
