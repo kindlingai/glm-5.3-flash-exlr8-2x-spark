@@ -136,9 +136,9 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
    ```
 
    The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 86 GB, the
-   model and the drafter) and converts the drafter. README.md (First numbers) gives the boot times on its card's two
-   boxes: TODO(switching-3model.md) s the first time, TODO(switching-3model.md) s for a restart with the cache kept
-   (previous image: 2,196 s and 37.9 s).
+   model and the drafter) and converts the drafter. README.md (First numbers) gives the boot times, measured on a
+   two-box DGX Spark set: 26.5 s to serving the first time (with the weights already on disk), 24.8 s for a restart
+   with the cache kept (previous image: 2,196 s including the download, and 37.9 s).
 
    Or with compose, on both boxes:
 

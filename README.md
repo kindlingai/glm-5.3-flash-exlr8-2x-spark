@@ -120,7 +120,8 @@ docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # on both boxes
 ```
 
 `docker stop` first waits for the engine to write the chats it still holds to the prompt cache, then the container
-exits: TODO(switching-3model.md) s in the measured runs. `docker rm` then removes the container.
+exits: 3.1-4.3 s in the measured runs (measured while switching from this model to another, on a two-box DGX Spark
+set, 2026-11-07). `docker rm` then removes the container.
 
 `:latest` is main. Each commit is also published as `sha-<commit>`, and each tag under its name.
 
@@ -204,8 +205,10 @@ The 128K needle test passes.
 The card at the top is one run of gr8's bench at its default level. It ran in the image on two GB10s with the image's
 defaults. The data is in `kindling.json`. To regenerate it, run
 `python3 gr8/bench/bench.py kindling REPORT.json --out kindling.json --config-id tp2`. The smoke test passed 14 of 14.
-Boot: TODO(switching-3model.md): first boot with the weights already on disk, and a restart with the cache kept
-(this image). On the previous image the first boot took 2,196 s including the download, of which 2,131 s went to
+Boot: 26.5 s to serving on the first boot with the weights already on disk, and 24.8 s on a restart with the cache
+kept (this image, a two-box DGX Spark set, 2026-11-07). The first boot and the restart cost the same: the read of the
+about 86 GB of weights is the whole cost — the pack is loaded 21.2 s into the boot and the graphs are captured at
+22.1 s. On the previous image the first boot took 2,196 s including the download, of which 2,131 s went to
 downloading the model and the drafter and converting the drafter, and a restart with the cache kept took 37.9 s.
 
 To run the bench in the image, on the head: `docker exec glm53f-2x-spark gr8 glm53f bench --hosts ''`. Without
