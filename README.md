@@ -122,8 +122,8 @@ docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # on both boxes
 The stop ends the engine's orderly quit, which gr8 #429 finishes once it has settled rather than after a fixed
 wait. In the measured switch runs, stopping and removing this recipe's containers — parallel `docker compose down`
 on both boxes — took 3.1-4.3 s (a two-box DGX Spark set, 2026-11-07; the runs stopped the other model's engines at
-the same time, and a `docker stop` alone was not timed separately). The chats need no write-out at the stop: the
-prompt cache keeps each chat's checkpoint on disk as it runs ([The prompt cache](#the-prompt-cache)).
+the same time, and a `docker stop` alone was not timed separately). Prompt checkpoints already written to disk
+stay there ([The prompt cache](#the-prompt-cache)); the stop does not save every chat or its complete state.
 `docker rm` then removes the stopped container.
 
 `:latest` is main. Each commit is also published as `sha-<commit>`, and each tag under its name.
@@ -212,9 +212,8 @@ Boot: measured on a local build of this recipe at `319ed60` with gr8 `4ed9e7b` (
 2026-11-07; the download that puts the weights on disk is separate — it is what the previous image's numbers below
 counted). The first boot with the weights already on disk reached serving 26.5 s after the run's start, of which
 24.8 s came after the start command returned; a restart with the cache kept took 24.8 s from the start command
-returning. The two boots cost the same: the boot is loading the about 86 GB of weights and starting the engines
-(the pack is loaded 21.2 s into the boot, the graphs captured at 22.1 s), and the first boot adds nothing the
-restart avoids. On the previous image the first boot took 2,196 s including the download, of which 2,131 s went to
+returning. The two measured waits after the start commands returned both rounded to 24.8 s. The boot is loading the about
+86 GB of weights and starting the engines (the pack is loaded 21.2 s into the boot, the graphs captured at 22.1 s). On the previous image the first boot took 2,196 s including the download, of which 2,131 s went to
 downloading the model and the drafter and converting the drafter, and a restart with the cache kept took 37.9 s.
 
 To run the bench in the image, on the head: `docker exec glm53f-2x-spark gr8 glm53f bench --hosts ''`. Without
