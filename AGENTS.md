@@ -203,10 +203,17 @@ Wait for `serving:` in the head's log, then run the other checks below.
 | the image does not pull | build the image on each box, in a clone with its submodule. `docker compose build` tags it `ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest`. Without compose, `docker buildx build --platform linux/arm64 -t glm53f-2x-spark .`, then use the tag `glm53f-2x-spark` |
 
 The container's exit status is the launcher's: 0 after a stop, 1 when a rank failed or the boxes did not join, 2 for
-bad options, 4 when the boxes' handshake refused the boot. On the box that failed, read a log with
-`docker exec glm53f-2x-spark gr8 glm53f logs supervisor` (or `shim` or `front`; with no name after `logs`, the
-engine's log). If a step fails for a reason not listed here, ask on the KindlingAI Discord (the link is at the top of
-README.md).
+bad options, 4 when the boxes' handshake refused the boot. `docker inspect -f '{{.State.ExitCode}}' glm53f-2x-spark`
+prints it.
+
+On the box that failed, read its log:
+
+- After the container exits: `docker logs glm53f-2x-spark` (compose: `docker compose logs`). It has the launcher's
+  output, and it is there until you remove the container.
+- While the container runs: `docker exec glm53f-2x-spark gr8 glm53f logs supervisor` (or `shim` or `front`; with no
+  name after `logs`, the engine's log).
+
+If a step fails for a reason not listed here, ask on the KindlingAI Discord (the link is at the top of README.md).
 
 ## 6. Not measured yet: tell the person
 
