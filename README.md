@@ -238,7 +238,7 @@ the about 86 GB of weights and starting the engines. (The 31.3 s row above inclu
 pinned before gr8 `4ed9e7be`, the same switch-away stop-and-remove phase took about 13-14 s.
 
 Chats survive the round trip: four chats, their next turn replayed after a full round trip to the TP=4 model
-and back, answered in 3.1-5.9 s (time to first token), all four with their context intact. These test prompts
+and back, answered in 3.1-5.9 s (total response time), all four with their context intact. These test prompts
 are short, and the prompt cache's checkpoints land at 4,096-token multiples, so the replays read their prompts
 fresh - a longer chat whose last checkpoint the cache holds would answer sooner.
 
