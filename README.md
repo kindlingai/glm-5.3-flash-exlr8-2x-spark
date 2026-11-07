@@ -57,6 +57,13 @@ Then start the recipe with `MENTAT=1` in place of `PEERS`, `IPS` and `IPS2`.
 To run without `mentat`, specify the two nodes' 10G IP addresses using `PEERS` (head first), and the matching
 ConnectX IP addresses with `IPS` (PCIe root 1) and `IPS2` (PCIe root 2), in the same order.
 
+What to set, with and without `mentat`:
+
+| your boxes | set | leave out |
+|---|---|---|
+| with `mentat` | `MENTAT=1` | `PEERS`, `IPS`, `IPS2` |
+| without `mentat` | `PEERS` (head first), `IPS`, `IPS2` | |
+
 ## Quickstart
 
 Run the published image on both boxes with the same settings. Without `mentat`, replace `<head>` and `<box2>` with the
