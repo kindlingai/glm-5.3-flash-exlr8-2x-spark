@@ -119,9 +119,12 @@ docker exec glm53f-2x-spark gr8 glm53f smoke   # on the head: 14 checks against 
 docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # on both boxes
 ```
 
-`docker stop` first waits for the engine to write the chats it still holds to the prompt cache, then the container
-exits: 3.1-4.3 s in the measured runs (measured while switching from this model to another, on a two-box DGX Spark
-set, 2026-11-07). `docker rm` then removes the container.
+The stop ends the engine's orderly quit, which gr8 #429 finishes once it has settled rather than after a fixed
+wait. In the measured switch runs, stopping and removing this recipe's containers — parallel `docker compose down`
+on both boxes — took 3.1-4.3 s (a two-box DGX Spark set, 2026-11-07; the runs stopped the other model's engines at
+the same time, and a `docker stop` alone was not timed separately). The chats need no write-out at the stop: the
+prompt cache keeps each chat's checkpoint on disk as it runs ([The prompt cache](#the-prompt-cache)).
+`docker rm` then removes the stopped container.
 
 `:latest` is main. Each commit is also published as `sha-<commit>`, and each tag under its name.
 
@@ -205,10 +208,13 @@ The 128K needle test passes.
 The card at the top is one run of gr8's bench at its default level. It ran in the image on two GB10s with the image's
 defaults. The data is in `kindling.json`. To regenerate it, run
 `python3 gr8/bench/bench.py kindling REPORT.json --out kindling.json --config-id tp2`. The smoke test passed 14 of 14.
-Boot: 26.5 s to serving on the first boot with the weights already on disk, and 24.8 s on a restart with the cache
-kept (this image, a two-box DGX Spark set, 2026-11-07). The first boot and the restart cost the same: the read of the
-about 86 GB of weights is the whole cost — the pack is loaded 21.2 s into the boot and the graphs are captured at
-22.1 s. On the previous image the first boot took 2,196 s including the download, of which 2,131 s went to
+Boot: measured on a local build of this recipe at `319ed60` with gr8 `4ed9e7b` (a two-box DGX Spark set,
+2026-11-07; the download that puts the weights on disk is separate — it is what the previous image's numbers below
+counted). The first boot with the weights already on disk reached serving 26.5 s after the run's start, of which
+24.8 s came after the start command returned; a restart with the cache kept took 24.8 s from the start command
+returning. The two boots cost the same: the boot is loading the about 86 GB of weights and starting the engines
+(the pack is loaded 21.2 s into the boot, the graphs captured at 22.1 s), and the first boot adds nothing the
+restart avoids. On the previous image the first boot took 2,196 s including the download, of which 2,131 s went to
 downloading the model and the drafter and converting the drafter, and a restart with the cache kept took 37.9 s.
 
 To run the bench in the image, on the head: `docker exec glm53f-2x-spark gr8 glm53f bench --hosts ''`. Without
@@ -225,7 +231,7 @@ this recipe's container on both boxes:
 docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # compose: docker compose down
 ```
 
-The stop drains the prompt cache first, as in the Quickstart, so it takes a moment before the containers go.
+The stop ends the engine's orderly quit, as in the Quickstart, so it takes a moment before the containers go.
 
 Each box's part stays in its `glm53f-2x-cache` volume, so a later start of this recipe downloads nothing. To free the
 disk (about 86 GB a box, and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
