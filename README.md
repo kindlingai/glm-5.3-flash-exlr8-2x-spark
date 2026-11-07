@@ -232,6 +232,30 @@ docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # compose: docker com
 
 The stop ends the engine's orderly quit, as in the Quickstart, so it takes a moment before the containers go.
 
+Switch times to and from this recipe, measured on 2026-11-07, warm, two runs each way: this recipe on a two-box
+DGX Spark pair, measured on a local build of the recipe at `319ed60` with gr8 `4ed9e7b` (the engine this recipe
+pins after its gr8 bump); GLM-5.3 and DeepSeek-V4.1-Flash at TP=4 on their four-box set (two DGX Sparks, two Gen4
+GB10 boxes). "Down" is the old model's stop-and-remove on every box, run in parallel (`docker compose down`),
+until all have returned; "Wait after the start returns" runs from the new model's start returning until it
+reports ready; "Total" runs from the start of the stop to ready.
+
+| Switch | Down | Wait after the start returns | Total |
+|---|---:|---:|---:|
+| GLM-5.3 (TP=4) to this recipe | 4.9 s | 24.8 s | 31.3 s |
+| This recipe to GLM-5.3 (TP=4) | 3.4-4.3 s | 69.8-70.6 s | 75.8 s (both runs) |
+| DeepSeek-V4.1-Flash (TP=4) to this recipe | 3.2-4.2 s | 23.8-24.0 s | 28.5 / 29.3 s |
+| This recipe to DeepSeek-V4.1-Flash (TP=4) | 3.1-3.6 s | 34.0-35.4 s | 39.7 / 40.2 s |
+
+The first boot of this recipe after its files were in place took 26.5 s from the run's start to ready, of which
+24.8 s came after the start command returned; the warm restart's wait also rounded to 24.8 s. The boot is loading
+the about 86 GB of weights and starting the engines. (The 31.3 s row above includes stopping GLM-5.3 first.) On
+the engine this recipe pinned before gr8 `4ed9e7be`, the same switch-away stop-and-remove phase took about 13-14 s.
+
+Chats survive the round trip: four chats, their next turn replayed after a full round trip to the TP=4 model
+and back, answered in 3.1-5.9 s (total response time), all four with their context intact. These test prompts
+are short, and the prompt cache's checkpoints land at 4,096-token multiples, so the replays read their prompts
+fresh.
+
 Each box's part stays in its `glm53f-2x-cache` volume, so a later start of this recipe downloads nothing. To free the
 disk (about 86 GB a box, and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
 
