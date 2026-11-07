@@ -18,6 +18,12 @@ case "${TUNE:-speed}" in
   quality) VARIANT=${VARIANT:-k4} SESS=${SESS:-4} CAP=${CAP:-262208} MAX_MODEL_LEN=${MAX_MODEL_LEN:-262144} ;;
   *) echo "TUNE=$TUNE: want speed (the default), context or quality (README.md, \"Pick what to prioritize\")" >&2; exit 2 ;;
 esac
+# gr8 takes GLM-5.3-Flash's k2, k3 and k4 by name, and any other manifest of the release as a path. The boot fetches
+# the release's manifests/ before it reads VARIANT, so a name such as bit349 becomes that file's path in the model
+# cache, for a MODEL pinned to a commit. The handshake shows the manifest's own name.
+if [[ $VARIANT != k[234] && $VARIANT != */* && ${MODEL:-} =~ ^https://huggingface\.co/([^/@]+)/([^/@]+)@([0-9a-f]{40})$ ]]; then
+  VARIANT=${MODEL_CACHE:-/var/lib/gr8/cache}/hf/${BASH_REMATCH[1]}--${BASH_REMATCH[2]}/${BASH_REMATCH[3]}/manifests/exlr8-manifest-$VARIANT.json
+fi
 export VARIANT SESS CAP MAX_MODEL_LEN
 case "${MENTAT:-0}" in
   0) unset MENTAT

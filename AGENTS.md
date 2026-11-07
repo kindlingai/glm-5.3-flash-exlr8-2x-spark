@@ -58,18 +58,20 @@ On both boxes:
 
 Set the same values on both boxes, in `.env` (compose) or with `docker run -e`.
 
-`TUNE` picks what to prioritize. On two boxes all three values boot the same settings for now, so use the default
-unless the person asks for another value.
+`TUNE` picks what to prioritize. Use the default unless the person asks for another value.
 
 | `TUNE` | the settings it sets (`knobs.sh`) | what it gives |
 |---|---|---|
-| `speed` (default) | none: the image's defaults (K4, int4 KV, `CAP=262208`, `MAX_MODEL_LEN=262144`) | the settings README.md's numbers were measured with: requests up to 262,144 tokens |
-| `context` | none | the same as `speed` for now: no `CAP` above 262,208 has been measured on two boxes |
-| `quality` | none | the same as `speed`: K4 already has the most bits per weight of the release's three widths, and the image builds only the int4 KV engine |
+| `speed` (default) | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=262144` | the settings of README.md's card: eight requests at once, each up to 262,144 tokens |
+| `context` | the same as `speed`, with `MAX_MODEL_LEN=1048576` and `GR8_CP=1` added to `EXTRA_ENV` (context-parallel KV) | one request up to 1,048,576 tokens, with more memory free on each box; decode at short context and prefill are a little slower |
+| `quality` | `VARIANT=k4`, `SESS=4`, `CAP=262208`, `MAX_MODEL_LEN=262144` | the release's widest width (K4), four requests at once, each up to 262,144 tokens |
 
 What else `knobs.sh` does:
 
 - Any other `TUNE` value stops the boot.
+- A `VARIANT`, `SESS`, `CAP` or `MAX_MODEL_LEN` the person sets keeps its value, whatever the `TUNE`. With
+  `TUNE=context`, a `GR8_CP` already in `EXTRA_ENV` keeps its value, and any other `EXTRA_ENV` stays, with `GR8_CP=1`
+  added at the end.
 - With `MENTAT=0` (the default), `PEERS` must name two addresses, or the boot stops.
 
 Every knob:
@@ -79,8 +81,10 @@ Every knob:
 | `PEERS` | the two boxes' 10G LAN addresses, comma-separated, head first, the same list on both boxes | none: required unless `MENTAT=1` |
 | `IPS`, `IPS2` | each box's ConnectX address on PCIe root 1 and root 2, in `PEERS` order | none |
 | `TUNE` | `speed`, `context`, `quality` | `speed` |
-| `CAP` | the KV pool in tokens, shared by the sessions, a multiple of 64; about 5 KB of memory a token. Every box holds the whole pool | `262208` |
-| `MAX_MODEL_LEN` | the longest single request, prompt and output together: at most `CAP` less the guard rows, and at most 1,048,576 | `262144` |
+| `VARIANT` | the release's width manifest: `bit349` (K3 with K4 where it lowers KL most, about 3.49 bits a routed weight), `k4`, `k3` or `k2` | `TUNE`'s: `bit349`, or `k4` for `quality` |
+| `SESS` | the requests that decode at once, 1 to 8 | `TUNE`'s: `8`, or `4` for `quality` |
+| `CAP` | the KV pool in tokens, shared by the sessions, a multiple of 64; about 5 KB of memory a token. Every box holds the whole pool | `TUNE`'s: `2097152`, or `262208` for `quality` |
+| `MAX_MODEL_LEN` | the longest single request, prompt and output together: at most `CAP` less the guard rows, and at most 1,048,576 | `TUNE`'s: `262144`, or `1048576` for `context` |
 | `DFLASH` | `1`: a request alone drafts with the DFlash2 drafter (licence CC BY-NC-ND 4.0), downloaded and converted on the first boot. `0`: MTP only, nothing downloaded | `1` |
 | `MENTAT` | `0`: the two boxes in `PEERS`. `1`: the boxes find each other and their ConnectX addresses through the host's `mentat` daemon, and register the API, in group `GROUP` | `0` |
 | `GROUP` | the `mentat` group, with `MENTAT=1` | `gr8-glm53f-2x` |

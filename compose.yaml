@@ -1,4 +1,4 @@
-# GLM-5.3-Flash on two GB10 boxes (DGX Spark) at TP=2: gr8, the K4 exlr8 release, int4 KV, a prompt cache on disk.
+# GLM-5.3-Flash on two GB10 boxes (DGX Spark) at TP=2: gr8, the exlr8 release, int4 KV, a prompt cache on disk.
 # Run this file on both boxes with the same .env (PEERS: the two LAN addresses, head first). The head serves on port 8100.
 #
 #   docker compose up -d                # pulls the image (CI publishes it), fetches this box's part, joins the other
@@ -15,7 +15,7 @@ services:
     image: ${IMAGE:-ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest}
     container_name: glm53f-2x-spark
     # The knobs (TUNE, CAP, DFLASH, MENTAT; README.md) and any other gr8 option come from .env. Unset, the image's
-    # defaults apply (Dockerfile).
+    # defaults (Dockerfile) and TUNE's (knobs.sh) apply.
     env_file:
       - path: .env
         required: false
@@ -55,7 +55,7 @@ services:
     init: true
     stop_grace_period: 30s
     volumes:
-      # The model: this box's part of the K4 release, about 86 GB, fetched from Hugging Face on the first boot. Set
+      # The model: this box's part of the release, fetched from Hugging Face on the first boot. Set
       # MODEL_CACHE_DIR to a host directory owned by uid 1000 to keep it outside docker.
       - ${MODEL_CACHE_DIR:-cache}:/var/lib/gr8/cache
       # The prompt cache (kv-store.yaml): checkpoints of prompts the box has prefilled, kept across restarts.
