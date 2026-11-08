@@ -199,23 +199,6 @@ A prompt's prefill keeps a checkpoint at its last multiple of 4,096 tokens in ea
 rest, and the output is the same bit for bit. Checkpoints outlive restarts (a new engine build, release or `CAP` starts
 empty).
 
-## How the card was made
-
-The card at the top is one run of gr8's bench at its default level, in this image on two GX10s joined by one 200G
-cable, with `TUNE=speed` and no other knob set. The run did not cool the GPUs between stages (`--hosts ''`, below).
-The data is in `kindling.json`, from `python3 gr8/bench/bench.py kindling REPORT.json --out kindling.json
---config-id tp2`, and the card is `python3 gr8/bench/gif.py card kindling.json`. The GIF is the run's 4-stream
-recording (`--record DIR`), drawn by `gif.py` at 2x speed. The smoke test passed 14 of 14. The 128K needle test
-passed in 8 of 8 runs (`--stages correct --needle-seed N`, N from 1 to 8).
-
-Boot, with the weights already in the cache: a restart took 30.8 s from the start command on the head to `/health`
-answering 200, with the second box started first. The first boot on a new release commit took 145 s with nothing to
-download: it links the unchanged files from the cached commit and checks them.
-
-To run the bench in the image, on the head: `docker exec glm53f-2x-spark gr8 glm53f bench --hosts ''`. Without
-`--hosts ''` it stops with `FileNotFoundError: 'ssh'`. The bench reaches each box over ssh to cool and sample its GPU,
-and the image has no ssh. With `--hosts ''` the bench does not cool the GPUs between stages.
-
 ## Run another model
 
 A box runs one model at a time, and gr8 does not start while another gr8 engine runs on it. To switch, stop and remove
