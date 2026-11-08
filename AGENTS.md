@@ -142,7 +142,7 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
    ```
 
    The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 76 GB, the
-   model and the drafter) and converts the drafter. README.md (How the card was made) gives the boot times.
+   model and the drafter) and converts the drafter.
 
    Or with compose, on both boxes:
 
@@ -160,8 +160,7 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
    new value on both (compose: `docker compose down`, edit `.env`, `docker compose up -d`). The boxes refuse to join
    unless they have the same cluster options. A change of `TUNE` or `MAX_MODEL_LEN` alone downloads nothing: each
    box's part stays in its cache volume. A new `MODEL` or `DRAFTER` commit, or `DFLASH=1` after boots with
-   `DFLASH=0`, downloads what the cache does not have yet. A new `CAP` starts the prompt cache empty (README.md, The
-   prompt cache).
+   `DFLASH=0`, downloads what the cache does not have yet. A new `CAP` starts the prompt cache empty.
 
 ## 4. Check that it serves
 
