@@ -241,6 +241,10 @@ reports ready; "Total" runs from the start of the stop to ready.
 | DeepSeek-V4.1-Flash (TP=4) to this recipe | 3.2-4.2 s | 23.8-24.0 s | 28.5 / 29.3 s |
 | This recipe to DeepSeek-V4.1-Flash (TP=4) | 3.1-3.6 s | 34.0-35.4 s | 39.7 / 40.2 s |
 
+With compact expert copies on the GLM-5.3 side (`GR8_LOAD_COMPACT`), the switch from this recipe to GLM-5.3 took
+47.2 s (both runs), against 76.2-76.3 s stock the same day (the table above is a separate session)
+([gr8/docs/SWITCHING.md](https://github.com/kindlingai/gr8/blob/main/docs/SWITCHING.md#compact-expert-copies-gr8_load_compact)).
+
 The first boot of this recipe after its files were in place took 26.5 s from the run's start to ready, of which
 24.8 s came after the start command returned; the warm restart's wait also rounded to 24.8 s. The boot is loading
 the K4 weights, about 86 GB, and starting the engines. (The 31.3 s row above includes stopping GLM-5.3 first.) On
