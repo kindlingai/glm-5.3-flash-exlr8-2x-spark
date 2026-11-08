@@ -18,7 +18,7 @@ One box serves GLM-5.3-Flash with [glm-5.3-flash-exlr8-1x-spark](https://github.
 
 Pick what to prioritize with one setting, `TUNE`:
 
-- `TUNE=speed` (the default): one request writes code at 75.0 tok/s, eight requests decode at 73.2 tok/s in total,
+- `TUNE=speed` (the default): one request writes code at 74.5 tok/s, eight requests decode at 98.2 tok/s in total,
   and a request can be up to 262,144 tokens.
 - `TUNE=context`: a request can be up to 1,048,576 tokens, with context-parallel KV. A 1,015,102-token prompt found
   its needle in 1,542 s.
@@ -176,8 +176,8 @@ Set `MODEL` or `DRAFTER` in `.env` as needed (`https://huggingface.co/<org>/<rep
 `k4` by name; `knobs.sh` turns another `VARIANT` name into its manifest's path in the model cache when `MODEL` names a
 commit. With a `MODEL` that follows a branch, set `VARIANT` to the manifest's path.
 
-Advanced `gr8` options can be specified in `.env` as well: [gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/48d43497f8261fc9f7a1893d1554ca4b29b35e81/KNOBS.md) lists them, and
-[gr8/docs/FLASH.md](https://github.com/kindlingai/gr8/blob/48d43497f8261fc9f7a1893d1554ca4b29b35e81/docs/FLASH.md) covers GLM-5.3-Flash. The image sets `TP=2`, `KV_FORMAT=int4` and the
+Advanced `gr8` options can be specified in `.env` as well: [gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/d21ddaa7b9b06bfada3615a3b4734c1d29d364c0/KNOBS.md) lists them, and
+[gr8/docs/FLASH.md](https://github.com/kindlingai/gr8/blob/d21ddaa7b9b06bfada3615a3b4734c1d29d364c0/docs/FLASH.md) covers GLM-5.3-Flash. The image sets `TP=2`, `KV_FORMAT=int4` and the
 prompt cache (`FLASH_CACHE=aligned`, `KV_STORE=@/etc/gr8/kv-store.yaml`) (`Dockerfile`); `TUNE` sets the rest
 (`knobs.sh`).
 
@@ -188,7 +188,7 @@ KV. When you set one of them yourself, your value wins. Measured on two GX10s jo
 
 | `TUNE` | sets | you get | you give up | measured |
 |---|---|---|---|---|
-| `speed` (default) | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=262144` | Decode, one stream: code / prose / structured 75.0 / 41.8 / 93.3 tok/s. Eight streams: 73.2 tok/s in total. Prefill 8K / 32K / 128K: 1,663 / 1,712 / 1,438 tok/s. 13.3-13.6 GiB free a box at idle. | Requests longer than 262,144 tokens. Some quality against K4: mean KL against BF16 0.397, K4 0.384 (the release card). | The card at the top. |
+| `speed` (default) | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=262144` | Decode, one stream: code / prose / structured 74.5 / 41.9 / 94.6 tok/s. Eight streams: 98.2 tok/s in total. Prefill 8K / 32K / 128K: 1,675 / 1,676 / 1,354 tok/s. 13.3-13.6 GiB free a box at idle. | Requests longer than 262,144 tokens. Some quality against K4: mean KL against BF16 0.397, K4 0.384 (the release card). | The card at the top. |
 | `context` | the same as `speed`, with `MAX_MODEL_LEN=1048576` and `GR8_CP=1` in `EXTRA_ENV` | One request up to 1,048,576 tokens. Context-parallel KV keeps the first 32,768 tokens of the KV on both boxes and each later 64-token page on one box, so each box has about 1.8 GiB more free: 15.1-15.3 GiB at idle. A 1,015,102-token prompt found its needle in 1,542 s, and free memory stayed above 15.4 GiB a box. At a 156K context one stream decodes 7% faster (39.2 against 36.5 tok/s). | Decode 1-3% slower at short context. Prefill 3% / 3% / 10% slower at 8K / 32K / 128K. Eight streams 2% slower in total. T=0 output is not the same bits as with it off. gr8 marks context-parallel KV for GLM-5.3-Flash experimental. | The memory and the needle on this image. The speed differences on test builds with the same widths, `SESS` and `CAP`. |
 | `quality` | `VARIANT=k4`, `SESS=4`, `CAP=262208`, `MAX_MODEL_LEN=262144` | The release's widest width, K4 (4.0 bits a routed weight, mean KL against BF16 0.384). Decode, one stream: code / prose / structured 68.8 / 40.2 / 88.0 tok/s. Prefill 8K / 32K / 128K: 1,742 / 1,625 / 1,386 tok/s. 13.2-13.4 GiB free a box at idle. | Half the sessions, an eighth of the KV pool, and about 10 GB more weights a box. Decode 4-8% slower than `speed`. Eight streams: 66.3 tok/s in total. | One run of the bench's decode, concurrency and prefill stages on this image, run as for the card. Its first boot downloaded 15 GB a box of K4 that `bit349` does not use. |
 
