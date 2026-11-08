@@ -176,8 +176,8 @@ Set `MODEL` or `DRAFTER` in `.env` as needed (`https://huggingface.co/<org>/<rep
 `k4` by name; `knobs.sh` turns another `VARIANT` name into its manifest's path in the model cache when `MODEL` names a
 commit. With a `MODEL` that follows a branch, set `VARIANT` to the manifest's path.
 
-Advanced `gr8` options can be specified in `.env` as well: [gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/48d43497f8261fc9f7a1893d1554ca4b29b35e81/KNOBS.md) lists them, and
-[gr8/docs/FLASH.md](https://github.com/kindlingai/gr8/blob/48d43497f8261fc9f7a1893d1554ca4b29b35e81/docs/FLASH.md) covers GLM-5.3-Flash. The image sets `TP=2`, `KV_FORMAT=int4` and the
+Advanced `gr8` options can be specified in `.env` as well: [gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/d21ddaa7b9b06bfada3615a3b4734c1d29d364c0/KNOBS.md) lists them, and
+[gr8/docs/FLASH.md](https://github.com/kindlingai/gr8/blob/d21ddaa7b9b06bfada3615a3b4734c1d29d364c0/docs/FLASH.md) covers GLM-5.3-Flash. The image sets `TP=2`, `KV_FORMAT=int4` and the
 prompt cache (`FLASH_CACHE=aligned`, `KV_STORE=@/etc/gr8/kv-store.yaml`) (`Dockerfile`); `TUNE` sets the rest
 (`knobs.sh`).
 
