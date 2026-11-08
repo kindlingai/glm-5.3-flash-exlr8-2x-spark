@@ -18,40 +18,40 @@
    "label": "TP=2",
    "nodes": 2,
    "decode": {
-    "code": 75.0,
-    "prose": 41.8,
-    "structured": 93.3
+    "code": 74.5,
+    "prose": 41.9,
+    "structured": 94.6
    },
    "prefill": [
     {
      "context": 8192,
-     "tps": 1663
+     "tps": 1675
     },
     {
      "context": 32768,
-     "tps": 1712
+     "tps": 1676
     },
     {
      "context": 131072,
-     "tps": 1438
+     "tps": 1354
     }
    ],
    "concurrency": [
     {
      "streams": 1,
-     "aggregate_tps": 53.5
+     "aggregate_tps": 54.0
     },
     {
      "streams": 2,
-     "aggregate_tps": 56.1
+     "aggregate_tps": 62.5
     },
     {
      "streams": 4,
-     "aggregate_tps": 63.1
+     "aggregate_tps": 75.5
     },
     {
      "streams": 8,
-     "aggregate_tps": 73.2
+     "aggregate_tps": 98.2
     }
    ],
    "max_context": 262144,
