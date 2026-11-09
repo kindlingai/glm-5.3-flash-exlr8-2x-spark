@@ -144,6 +144,7 @@ ENV PATH=/opt/glm53f-2x/bin:/opt/gr8/bin:$PATH PYTHONPATH=/opt/gr8/frontend HOME
 #   VARIANT        the release's width manifest: bit349 (about 3.49 bits a routed weight), or k4 for quality
 #   DFLASH         1: a request alone drafts with the DFlash2 drafter (fetched and converted on the first boot); 0: MTP only
 #   MENTAT         0: the two boxes in PEERS; 1: find each other through mentat (knobs.sh)
+#   EXTRA_ENV      engine variables; knobs.sh adds GR8_GLM53F_VISION=1 (image input) unless it already names it
 ENV TUNE=speed DFLASH=1 MENTAT=0
 # The rest of the recipe, as gr8's launcher options (gr8/KNOBS.md)
 #   MODEL, DRAFTER: pinned to the Hugging Face commits measured here. The model cache is keyed by commit, so a new
@@ -151,7 +152,14 @@ ENV TUNE=speed DFLASH=1 MENTAT=0
 #   from a cached commit.
 # PEERS (and IPS, IPS2) have no default: they name the two boxes (knobs.sh, .env.example).
 ENV TP=2 GROUP=gr8-glm53f-2x KV_FORMAT=int4 FLASH_CACHE=aligned KV_STORE=@/etc/gr8/kv-store.yaml \
-    MODEL=https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4@1a22815d178a79f78bb44e6858f0ee446ae8f0d4 \
+    MODEL=https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4@901ad084f0afd2400820504910d3e684133ce183 \
     DRAFTER=https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2@bf582e4eacc1810f76656d1811693ff6c6737d2a
+# Reply and thinking length, as the one-box recipe. A request with no max_tokens gets 32,768 (or the room the context
+# leaves, if less). With no limit, GLM-5.3-Flash at T=1 and maximum effort can think until max_tokens on a large agent
+# task and never answer. From the 16,384th thinking token, the </think> logit gains 4 a thousand tokens, up to 10, so a
+# long think ends where the model is ready to stop. The hard budget closes the thinking at 28,672 tokens, a backstop for
+# a request the boost does not end, and leaves 4,096 of the default 32,768 to answer. Both count thinking tokens only.
+# A request's own max_tokens, think_end_boost or thinking_budget wins.
+ENV DEFAULT_MAX_TOKENS=32768 DEFAULT_THINK_END_BOOST="start=16384,per1k=4,max=10" DEFAULT_THINKING_BUDGET=28672
 USER 1000:1000
 ENTRYPOINT ["/opt/glm53f-2x/entrypoint.sh"]

@@ -87,8 +87,8 @@ docker logs -f glm53f-2x-spark     # on the head: ready at "serving: http://..."
 With `mentat` running, replace the `PEERS`, `IPS` and `IPS2` settings with `-e MENTAT=1`. The head is then the box
 with the lowest address.
 
-The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 76 GB, the model
-and the drafter) and converts the drafter. The download time depends on your link, and this recipe has no measured
+The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 77 GB, the model,
+the vision tower and the drafter) and converts the drafter. The download time depends on your link, and this recipe has no measured
 first-boot time yet. The boxes wait up to 600 s (10 minutes) for each other, so start both within that time.
 
 The API is OpenAI's on the head's port 8100, and the model's name is `glm-5.3-flash` (`glm53f` also works):
@@ -102,6 +102,19 @@ curl -s localhost:8100/v1/chat/completions -H 'Content-Type: application/json' -
 ```
 
 The model thinks before it answers. The thinking comes back in `message.reasoning` and counts toward `max_tokens`.
+
+The model also reads images. Send each one inline as an `image_url` content part with a `data:` URL (base64), up to 16
+images a request; the API does not fetch URLs:
+
+```bash
+curl -s localhost:8100/v1/chat/completions -H 'Content-Type: application/json' -d '{
+  "model": "glm-5.3-flash",
+  "messages": [{"role": "user", "content": [
+    {"type": "text", "text": "What is in this picture?"},
+    {"type": "image_url", "image_url": {"url": "data:image/png;base64,<base64 of the PNG>"}}]}],
+  "max_tokens": 4096
+}'
+```
 
 ```bash
 docker exec glm53f-2x-spark gr8 glm53f smoke   # on the head: 14 checks against the API
@@ -139,12 +152,16 @@ Set these in `.env` next to `compose.yaml` (see `.env.example`), or with `docker
 | `MAX_MODEL_LEN` | `262144` (`1048576` with `TUNE=context`) | The longest single request, prompt and output together. At most 1,048,576. |
 | `DFLASH` | `1` | `1` drafts with [DFlash2](https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2) (CC BY-NC-ND 4.0) when a request runs alone, downloaded on the first boot. `0` uses MTP only and downloads nothing. |
 | `MENTAT` | `0` | `1` finds the other box and the ConnectX addresses through the host's `mentat` daemon, and registers the API in group `GROUP` (`gr8-glm53f-2x`). |
+| `GR8_GLM53F_VISION` in `EXTRA_ENV` | `1` | Image input. Each box loads the vision tower (about 1.6 GiB of memory) and downloads it on the first boot (about 1.1 GB). The recipe adds `GR8_GLM53F_VISION=1` to `EXTRA_ENV` unless `EXTRA_ENV` already names it: to turn image input off, set `EXTRA_ENV="GR8_GLM53F_VISION=0"` (with anything else `EXTRA_ENV` holds) on both boxes. |
+| `DEFAULT_MAX_TOKENS` | `32768` | `max_tokens` for a request that sends none, or the room the context leaves if that is less. |
+| `DEFAULT_THINK_END_BOOST` | `start=16384,per1k=4,max=10` | After 16,384 thinking tokens, makes the end of thinking a little more likely with each token, so a long think ends where the model is ready to stop. Empty turns it off. |
+| `DEFAULT_THINKING_BUDGET` | `28672` | The most thinking tokens a request gets, after which its thinking is closed and it answers. `0` means no limit. |
 
 The image pins the weights to fixed Hugging Face commits. Set `MODEL` or `DRAFTER` in `.env` to change them
 (`https://huggingface.co/<org>/<repo>@<commit>`). With a `MODEL` that follows a branch, set `VARIANT` to the
 manifest's path.
 
-[gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/d21ddaa7b9b06bfada3615a3b4734c1d29d364c0/KNOBS.md) lists the
+[gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/d62cb6b4eae3fb0eba5f71d98be90d0fb65b8aa4/KNOBS.md) lists the
 advanced `gr8` options, which you can also set in `.env`.
 
 ## Pick what to prioritize
@@ -212,7 +229,7 @@ has the runs.)
 
 Every number above, and the 73 GiB and 43 files, was measured with `VARIANT=k4` on release pin
 `867580abd28d142bb4c56218bb81a752b7dea988` (kindlingai/glm-5.3-flash-exlr8-k2-k3-k4), the pin before this recipe's
-`bit349` default (PR #14, `8f1992b`; the current pin is `1a22815d178a79f78bb44e6858f0ee446ae8f0d4`). `bit349` (the
+`bit349` default (PR #14, `8f1992b`; the current pin is `901ad084f0afd2400820504910d3e684133ce183`). `bit349` (the
 default, `TUNE=speed`) was not measured.
 
 ## Run another model
@@ -224,7 +241,7 @@ docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # compose: docker com
 ```
 
 Each box's part stays in its `glm53f-2x-cache` volume, so a later start downloads nothing. To free the disk (about
-76 GB a box, more after a `TUNE=quality` boot, up to 73 GiB (about 78 GB) of compact copies (a `VARIANT=k4` size) if
+77 GB a box, about 130 GB after `TUNE=quality` boots too, up to 73 GiB (about 78 GB) of compact copies (a `VARIANT=k4` size) if
 you wrote them, and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
 
 ```bash
