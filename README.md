@@ -181,8 +181,9 @@ directory that already exists is checked and reused, never overwritten. A boot n
 - **A different `VARIANT`** (`TUNE=quality` uses `k4`), TP size or release needs its own directory: set
   `GR8_LOAD_COMPACT` to a new path in `EXTRA_ENV` on both boxes and run `prepare` again.
 - **Both boxes** need the same `EXTRA_ENV`. With `docker run`, pass
-  `-e EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1"` to the `prepare` command and to
-  the boot command (see Quickstart): the copies are read only with it.
+  `-e EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1"` to the `prepare` command (the
+  `docker run ... prepare` command is in AGENTS.md, step 3 of "Boot") and to the boot command (see Quickstart): the
+  copies are read only with it.
 - **To turn it off again,** comment out the `EXTRA_ENV` line in `.env` on both boxes and restart. The copies stay in the
   volume. To free the 73 GiB, delete the `compact-tp2` directory in the cache volume.
 
@@ -217,8 +218,8 @@ docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # compose: docker com
 ```
 
 Each box's part stays in its `glm53f-2x-cache` volume, so a later start downloads nothing. To free the disk (about
-76 GB a box, more after a `TUNE=quality` boot, 73 GiB of compact copies if you wrote them, and up to 64 GB of prompt
-checkpoints), remove the volumes on both boxes:
+76 GB a box, more after a `TUNE=quality` boot, up to 73 GiB of compact copies (a `VARIANT=k4` size) if you wrote them,
+and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
 
 ```bash
 docker volume rm glm53f-2x-cache glm53f-2x-prompts glm53f-2x-home   # compose: docker compose down -v
