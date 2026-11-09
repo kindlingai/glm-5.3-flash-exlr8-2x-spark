@@ -14,7 +14,9 @@ On both boxes:
 - Docker and the NVIDIA container toolkit are installed (both come with DGX OS): `docker info | grep -i nvidia` shows
   the `nvidia` runtime.
 - Free disk where Docker keeps volumes: about 76 GB for this box's part of the model and the drafter (86 GB with
-  `TUNE=quality`; switching between the two keeps both, about 91 GB), plus up to 64 GB for the prompt cache. Check
+  `TUNE=quality`; switching between the two keeps both, about 91 GB), plus, only if the person turns on the compact expert
+  copies (off by default, step 3), 73 GiB (about 78 GB; a `VARIANT=k4` size, the `bit349` size was not measured), plus up
+  to 64 GB for the prompt cache. Check
   with `df -h "$(docker info --format '{{.DockerRootDir}}')"`. With compose, you can set `MODEL_CACHE_DIR` and
   `PROMPT_CACHE_DIR` to host directories owned by uid 1000 instead.
 - The box can reach Hugging Face for the download: `curl -sI https://huggingface.co` answers.
@@ -95,6 +97,7 @@ Every knob:
 | `MODEL` | the release, `https://huggingface.co/<org>/<repo>@<commit>` | the commit README.md's numbers were measured with |
 | `DRAFTER` | the drafter, `https://huggingface.co/<org>/<repo>@<commit>` | the commit README.md's numbers were measured with |
 | `HF_TOKEN` | sent only to Hugging Face, for a gated or private repo | none |
+| `EXTRA_ENV` | `NAME=VALUE` pairs for the engine, separated by spaces, the same on both boxes. `.env.example` has `GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1` commented out: off by default, step 3 turns it on | none |
 
 Any other gr8 launcher option works too (gr8/KNOBS.md).
 
@@ -118,7 +121,7 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
    cache, no other engine running, `/dev/infiniband`, free memory. It prints a `FAIL` line for each problem, ends with
    `check: N failed`, and exits 1 if N is not 0. Before the first boot it lists this box's part of the model as not in
    the cache yet and the drafter as not converted yet: the first boot downloads and converts them. Any other `FAIL`
-   line is a problem to fix before step 3. With `mentat` it cannot check the model's files: a box learns its rank only
+   line is a problem to fix before step 4. With `mentat` it cannot check the model's files: a box learns its rank only
    at boot. Tell the person the `check` output before you change anything on the box.
 
    ```bash
@@ -128,7 +131,36 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
      ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest check
    ```
 
-3. Start the container on both boxes within 10 minutes of each other. gr8's `JOIN_TIMEOUT` (600 s) limits how long
+3. Optional, off by default: the compact expert copies. Skip this step unless the person wants them. Skipped, `EXTRA_ENV`
+   has no `GR8_LOAD_COMPACT` (`.env.example` has the line commented out) and the boot reads the release as before. To
+   use them, on both boxes: set `EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1"` (in
+   `.env` for compose, by removing the `#` from the line of `.env.example`; with `docker run`, `-e EXTRA_ENV=...` on the
+   `prepare` command below and on the boot command in step 4), then write the copies once, before the first boot or with
+   the container stopped. `prepare` first fetches and checks the model and the drafter as a boot does, then writes this
+   box's copies to `/var/lib/gr8/cache/compact-tp2`, reads every copy back and checks it. It needs 73 GiB free beside
+   the model (on a nearly full disk the copies can fragment and read slower), starts no engine, and reuses a directory
+   that already holds good copies. Tell the person the numbers behind this are `VARIANT=k4` measurements on release pin
+   `867580abd28d142bb4c56218bb81a752b7dea988` (the pin before this recipe's `bit349` default, PR #14, `8f1992b`) and that
+   `bit349`, the default `TUNE=speed`, was not measured (README.md, "Compact expert copies"). If the line is on and
+   `prepare` has not run, the boot still works: the loader finds no copies and reads the release as before, except
+   `GR8_LOAD_MERGE_KB=1` still merges nearby reads (ranges at most 1 KB apart, gaps included); there is no number for
+   that. Tell the person which it is.
+
+   ```bash
+   docker compose run --rm gr8 prepare            # compose, on both boxes
+   docker run --rm --network host -e PEERS=<head>,<box2> -e TUNE=speed \
+     -e EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1" \
+     -v glm53f-2x-cache:/var/lib/gr8/cache \
+     ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest prepare     # docker run, on both boxes
+   ```
+
+   With `MENTAT=1` a box learns its rank only at boot, so add `--rank 0` on the head (the box with the lowest address)
+   and `--rank 1` on the other box. A different `VARIANT`, a different TP size or a new release needs a new directory
+   in `GR8_LOAD_COMPACT` and a new `prepare`; the copies of another `VARIANT` do not match. To turn the copies off
+   again, comment out `EXTRA_ENV` (or remove `GR8_LOAD_COMPACT` and `GR8_LOAD_MERGE_KB` from it) on both boxes and
+   restart; delete the directory to free the disk.
+
+4. Start the container on both boxes within 10 minutes of each other. gr8's `JOIN_TIMEOUT` (600 s) limits how long
    the second box waits for the head to answer and, with `mentat`, how long the group takes to fill.
 
    ```bash
@@ -140,6 +172,9 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
      -v glm53f-2x-cache:/var/lib/gr8/cache -v glm53f-2x-prompts:/var/lib/gr8/prompts -v glm53f-2x-home:/var/lib/gr8/home \
      ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:latest
    ```
+
+   If you wrote the copies (step 3), add `-e EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1"`
+   to this command on both boxes; the copies are read only with it. (With compose, `.env` carries the line.)
 
    The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 76 GB, the
    model and the drafter) and converts the drafter.
@@ -156,7 +191,7 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
    Compose keeps the model in its own volumes, not in the `glm53f-2x-*` volumes of `docker run`, so the first compose
    boot downloads the model even after a `docker run` boot.
 
-4. To change `TUNE` or any other knob later: stop and remove the container on both boxes, then start it again with the
+5. To change `TUNE` or any other knob later: stop and remove the container on both boxes, then start it again with the
    new value on both (compose: `docker compose down`, edit `.env`, `docker compose up -d`). The boxes refuse to join
    unless they have the same cluster options. A change of `TUNE` or `MAX_MODEL_LEN` alone downloads nothing: each
    box's part stays in its cache volume. A new `MODEL` or `DRAFTER` commit, or `DFLASH=1` after boots with
