@@ -16,8 +16,9 @@ One box serves GLM-5.3-Flash with [glm-5.3-flash-exlr8-1x-spark](https://github.
 
 - Two Sparks joined by a 200G cable between their ConnectX ports (see Clustering).
 - Docker and the NVIDIA container toolkit on each box (both come with DGX OS).
-- No other model running on either box: the weights take about 76 GB a box (86 GB with `TUNE=quality`). With
-  compose and `.env.example`'s settings, the compact expert copies (see below) take another 73 GiB a box.
+- No other model running on either box: the weights take about 76 GB a box (86 GB with `TUNE=quality`). If you
+  turn on the optional compact expert copies (see below, off by default), they take another 73 GiB a box (a `VARIANT=k4`
+  size; the `bit349` size was not measured).
 - A LAN between the two boxes, with TCP ports 7340 and 7341 open.
 - Proactive memory compaction off on each box, once, as root (it holds across reboots):
 
@@ -76,6 +77,10 @@ docker logs -f glm53f-2x-spark     # on the head: ready at "serving: http://..."
 
 With `mentat` running, replace the `PEERS`, `IPS` and `IPS2` settings with `-e MENTAT=1`. The head is then the box
 with the lowest address.
+
+If you wrote the compact expert copies (see Compact expert copies), add
+`-e EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1"` to this command on both boxes: the
+copies are read only with it.
 
 The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 76 GB, the model
 and the drafter) and converts the drafter. The boxes wait for each other, so start both within a few minutes.
@@ -148,12 +153,14 @@ advanced `gr8` options, which you can also set in `.env`.
 
 ## Compact expert copies
 
-`.env.example` turns on `GR8_LOAD_COMPACT` and `GR8_LOAD_MERGE_KB=1` in `EXTRA_ENV`. With both, the loader reads dense
+Optional, and off by default. `GR8_LOAD_COMPACT` and `GR8_LOAD_MERGE_KB=1` in `EXTRA_ENV` make the loader read dense
 per-rank copies of its expert ranges in place of the release's sparse files. The bytes it loads are the same, and a
-switch into this recipe is faster.
+switch into this recipe was faster in our runs. The numbers below are `VARIANT=k4` numbers, not the default `bit349`'s:
+see the label under the table.
 
-Write the copies once on each box, before the first boot or with the recipe stopped (`prepare` writes files and starts
-no engine). With compose:
+To turn it on, on both boxes: remove the `#` from the `EXTRA_ENV` line in `.env` (`.env.example` has it commented out),
+write the copies once, then start or restart the recipe. Write the copies before the first boot or with the recipe
+stopped (`prepare` writes files and starts no engine). With compose:
 
 ```bash
 docker compose run --rm gr8 prepare               # on both boxes
@@ -165,15 +172,18 @@ docker compose run --rm gr8 prepare --rank 0      # with MENTAT=1 instead: the r
 `/var/lib/gr8/cache/compact-tp2` (the cache volume), reads every copy back through the loader's map and checks it. A
 directory that already exists is checked and reused, never overwritten. A boot never writes or refreshes copies.
 
-- **Before `prepare` has run**, the loader finds no copies and reads the release as before. `GR8_LOAD_MERGE_KB=1` still
-  applies to those reads: it reads ranges of one file that are at most 1 KB apart with one read, gaps included. We have
-  no numbers for that without the copies.
-- **Disk:** 73 GiB a box (43 copy files and their maps, written with the default `bit349` manifest), beside the release,
-  which stays. Run `prepare` on a disk with room: copies written onto a nearly full disk can fragment and read slower.
+- **If the line is on and `prepare` has not run**, the loader finds no copies and reads the release as before, except
+  `GR8_LOAD_MERGE_KB=1` still merges nearby reads: it reads ranges of one file that are at most 1 KB apart with one
+  read, gaps included. We have no numbers for that without the copies.
+- **Disk:** 73 GiB a box (43 copy files and their maps, with `VARIANT=k4`; the `bit349` size was not measured), beside
+  the release, which stays. Run `prepare` on a disk with room: copies written onto a nearly full disk can fragment and
+  read slower.
 - **A different `VARIANT`** (`TUNE=quality` uses `k4`), TP size or release needs its own directory: set
   `GR8_LOAD_COMPACT` to a new path in `EXTRA_ENV` on both boxes and run `prepare` again.
-- **Both boxes** need the same `EXTRA_ENV`. With `docker run`, pass the same line as `-e EXTRA_ENV="..."`.
-- **To turn it off,** comment out the `EXTRA_ENV` line in `.env` on both boxes and restart. The copies stay in the
+- **Both boxes** need the same `EXTRA_ENV`. With `docker run`, pass
+  `-e EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1"` to the `prepare` command and to
+  the boot command (see Quickstart): the copies are read only with it.
+- **To turn it off again,** comment out the `EXTRA_ENV` line in `.env` on both boxes and restart. The copies stay in the
   volume. To free the 73 GiB, delete the `compact-tp2` directory in the cache volume.
 
 Measured on 2026-11-07 (Pacific time) on two DGX Sparks, GLM-5.3-Flash at TP=2, a local build of this recipe on gr8
@@ -192,6 +202,11 @@ DeepSeek-V4.1-Flash. Earlier the same day, without the copies and on the recipe'
 33.4 / 33.5 s and 30.7 / 29.5 s. The same 8 fixed prompts gave the same text and token counts as the stock arm, 8 of 8.
 ([gr8's docs/SWITCHING.md](https://github.com/kindlingai/gr8/blob/main/docs/SWITCHING.md#compact-copies-on-the-pair)
 has the runs.)
+
+Every number above, and the 73 GiB and 43 files, was measured with `VARIANT=k4` on release pin
+`867580abd28d142bb4c56218bb81a752b7dea988` (kindlingai/glm-5.3-flash-exlr8-k2-k3-k4), the pin before this recipe's
+`bit349` default (PR #14, `8f1992b`; the current pin is `1a22815d178a79f78bb44e6858f0ee446ae8f0d4`). `bit349` (the
+default, `TUNE=speed`) was not measured.
 
 ## Run another model
 
