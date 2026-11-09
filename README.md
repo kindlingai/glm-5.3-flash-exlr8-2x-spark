@@ -16,9 +16,7 @@ One box serves GLM-5.3-Flash with [glm-5.3-flash-exlr8-1x-spark](https://github.
 
 - Two Sparks joined by a 200G cable between their ConnectX ports (see Clustering).
 - Docker and the NVIDIA container toolkit on each box (both come with DGX OS).
-- No other model running on either box: the weights take about 76 GB a box (86 GB with `TUNE=quality`). If you
-  turn on the optional compact expert copies (see below, off by default), they take another 73 GiB a box (a `VARIANT=k4`
-  size; the `bit349` size was not measured).
+- No other model running on either box: the weights take about 76 GB a box (86 GB with `TUNE=quality`).
 - A LAN between the two boxes, with TCP ports 7340 and 7341 open.
 - Proactive memory compaction off on each box, once, as root (it holds across reboots):
 
@@ -30,7 +28,9 @@ One box serves GLM-5.3-Flash with [glm-5.3-flash-exlr8-1x-spark](https://github.
 ## Clustering
 
 Give each box one address per PCIe root. The Spark's ConnectX card shows each physical port twice, once on each PCIe
-root, and the engines use both. For a cable on the first port, with netplan:
+root, and the engines use both. Run `ip -br link` on each box to list your port names; the names in the example below
+(`enp1s0f0np0` and `enP2p1s0f0np0`) are the example's, so use yours. `mtu: 9000` (jumbo frames) must be set on both
+boxes, and a switch between them must pass it. For a cable on the first port, with netplan:
 
 ```yaml
 # /etc/netplan/60-connectx.yaml on the first box. On the second box: 10.0.0.2 and 10.0.1.2.
@@ -47,6 +47,14 @@ network:
 
 Then run `sudo netplan apply` on each box.
 
+Two kinds of address are used below:
+
+- The 10G LAN address is the box's address on your network (the Spark's 10G Ethernet port). `PEERS` holds the two
+  boxes' 10G LAN addresses, head first, and the head serves the API on its LAN address.
+- The ConnectX addresses are the ones you gave the ConnectX ports in the netplan file (`10.0.0.x` on PCIe root 1,
+  `10.0.1.x` on PCIe root 2 in the example). `IPS` holds the two boxes' root-1 addresses and `IPS2` their root-2
+  addresses.
+
 With [`mentat`](https://github.com/kindlingai/mentat) running on each box, the recipe finds the other box and its
 ConnectX addresses by itself. On each box:
 
@@ -57,7 +65,8 @@ docker run -d --name mentat --network host --restart unless-stopped ghcr.io/kind
 Then start the recipe with `MENTAT=1` in place of `PEERS`, `IPS` and `IPS2`.
 
 Without `mentat`, set the two boxes' 10G LAN addresses in `PEERS` (head first), and the matching ConnectX addresses in
-`IPS` (PCIe root 1) and `IPS2` (PCIe root 2), in the same order.
+`IPS` (PCIe root 1) and `IPS2` (PCIe root 2), in the same order. In `.env.example` these three lines are commented
+out, with placeholders: edit them and remove the `#` from each.
 
 ## Quickstart
 
@@ -78,12 +87,9 @@ docker logs -f glm53f-2x-spark     # on the head: ready at "serving: http://..."
 With `mentat` running, replace the `PEERS`, `IPS` and `IPS2` settings with `-e MENTAT=1`. The head is then the box
 with the lowest address.
 
-If you wrote the compact expert copies (see Compact expert copies), add
-`-e EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1"` to this command on both boxes: the
-copies are read only with it.
-
 The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 76 GB, the model
-and the drafter) and converts the drafter. The boxes wait for each other, so start both within a few minutes.
+and the drafter) and converts the drafter. The download time depends on your link, and this recipe has no measured
+first-boot time yet. The boxes wait up to 600 s (10 minutes) for each other, so start both within that time.
 
 The API is OpenAI's on the head's port 8100, and the model's name is `glm-5.3-flash` (`glm53f` also works):
 
@@ -111,7 +117,7 @@ docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # on both boxes
 ```bash
 git clone --recurse-submodules https://github.com/kindlingai/glm-5.3-flash-exlr8-2x-spark
 cd glm-5.3-flash-exlr8-2x-spark
-cp .env.example .env          # set PEERS, IPS and IPS2: the same file on both boxes
+cp .env.example .env          # edit PEERS, IPS and IPS2 and remove their #: the same file on both boxes
 docker compose up -d
 docker compose logs -f
 ```
@@ -175,15 +181,15 @@ directory that already exists is checked and reused, never overwritten. A boot n
 - **If the line is on and `prepare` has not run**, the loader finds no copies and reads the release as before, except
   `GR8_LOAD_MERGE_KB=1` still merges nearby reads: it reads ranges of one file that are at most 1 KB apart with one
   read, gaps included. We have no numbers for that without the copies.
-- **Disk:** 73 GiB a box (43 copy files and their maps, with `VARIANT=k4`; the `bit349` size was not measured), beside
-  the release, which stays. Run `prepare` on a disk with room: copies written onto a nearly full disk can fragment and
-  read slower.
+- **Disk:** 73 GiB (about 78 GB) a box: 43 copy files and their maps, with `VARIANT=k4`; the `bit349` size was not
+  measured. They sit beside the release, which stays. Run `prepare` on a disk with room: copies written onto a nearly
+  full disk can fragment and read slower.
 - **A different `VARIANT`** (`TUNE=quality` uses `k4`), TP size or release needs its own directory: set
   `GR8_LOAD_COMPACT` to a new path in `EXTRA_ENV` on both boxes and run `prepare` again.
 - **Both boxes** need the same `EXTRA_ENV`. With `docker run`, pass
   `-e EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1"` to the `prepare` command (the
-  `docker run ... prepare` command is in AGENTS.md, step 3 of "Boot") and to the boot command (see Quickstart): the
-  copies are read only with it.
+  `docker run ... prepare` command is in AGENTS.md, step 3 of "Boot") and add it to the boot command in the Quickstart,
+  on both boxes: the copies are read only with it.
 - **To turn it off again,** comment out the `EXTRA_ENV` line in `.env` on both boxes and restart. The copies stay in the
   volume. To free the 73 GiB, delete the `compact-tp2` directory in the cache volume.
 
@@ -218,8 +224,8 @@ docker stop glm53f-2x-spark && docker rm glm53f-2x-spark   # compose: docker com
 ```
 
 Each box's part stays in its `glm53f-2x-cache` volume, so a later start downloads nothing. To free the disk (about
-76 GB a box, more after a `TUNE=quality` boot, up to 73 GiB of compact copies (a `VARIANT=k4` size) if you wrote them,
-and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
+76 GB a box, more after a `TUNE=quality` boot, up to 73 GiB (about 78 GB) of compact copies (a `VARIANT=k4` size) if
+you wrote them, and up to 64 GB of prompt checkpoints), remove the volumes on both boxes:
 
 ```bash
 docker volume rm glm53f-2x-cache glm53f-2x-prompts glm53f-2x-home   # compose: docker compose down -v
