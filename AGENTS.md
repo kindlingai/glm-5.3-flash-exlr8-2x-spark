@@ -184,7 +184,7 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
    ```bash
    git clone --recurse-submodules https://github.com/kindlingai/glm-5.3-flash-exlr8-2x-spark
    cd glm-5.3-flash-exlr8-2x-spark
-   cp .env.example .env          # set PEERS, IPS and IPS2 (or MENTAT=1), and TUNE: the same file on both boxes
+   cp .env.example .env          # edit PEERS, IPS and IPS2 and remove their # (or set MENTAT=1), and set TUNE: the same file on both boxes
    docker compose up -d
    ```
 
