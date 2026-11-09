@@ -154,11 +154,12 @@ ENV TUNE=speed DFLASH=1 MENTAT=0
 ENV TP=2 GROUP=gr8-glm53f-2x KV_FORMAT=int4 FLASH_CACHE=aligned KV_STORE=@/etc/gr8/kv-store.yaml \
     MODEL=https://huggingface.co/kindlingai/glm-5.3-flash-exlr8-k2-k3-k4@901ad084f0afd2400820504910d3e684133ce183 \
     DRAFTER=https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2@bf582e4eacc1810f76656d1811693ff6c6737d2a
-# Thinking length, as the one-box recipe. With no limit, GLM-5.3-Flash at T=1 and maximum effort can think until
-# max_tokens on a large agent task and never answer. From the 16,384th thinking token, the </think> logit gains 2 a
-# thousand tokens, up to 10, so a long think ends where the model is ready to stop. The hard budget at 32,768 is a
-# backstop for a request the boost does not end. Both count thinking tokens only, so a request with a max_tokens below
-# 16,384 never reaches them. A request's own think_end_boost or thinking_budget wins.
-ENV DEFAULT_THINK_END_BOOST="start=16384,per1k=2,max=10" DEFAULT_THINKING_BUDGET=32768
+# Reply and thinking length, as the one-box recipe. A request with no max_tokens gets 32,768 (or the room the context
+# leaves, if less). With no limit, GLM-5.3-Flash at T=1 and maximum effort can think until max_tokens on a large agent
+# task and never answer. From the 16,384th thinking token, the </think> logit gains 4 a thousand tokens, up to 10, so a
+# long think ends where the model is ready to stop. The hard budget closes the thinking at 28,672 tokens, a backstop for
+# a request the boost does not end, and leaves 4,096 of the default 32,768 to answer. Both count thinking tokens only.
+# A request's own max_tokens, think_end_boost or thinking_budget wins.
+ENV DEFAULT_MAX_TOKENS=32768 DEFAULT_THINK_END_BOOST="start=16384,per1k=4,max=10" DEFAULT_THINKING_BUDGET=28672
 USER 1000:1000
 ENTRYPOINT ["/opt/glm53f-2x/entrypoint.sh"]
