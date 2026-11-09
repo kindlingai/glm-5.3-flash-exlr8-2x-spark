@@ -6,6 +6,8 @@
 #             a smaller CAP, set MAX_MODEL_LEN too: at most CAP less the guard rows.
 #   TUNE=quality: the release's K4 width, four sessions sharing a 262,208-token pool, requests up to 262,144 tokens.
 #   A VARIANT, SESS, CAP or MAX_MODEL_LEN set on its own keeps its value, and so does a GR8_CP already in EXTRA_ENV.
+#   Image input is on: GR8_GLM53F_VISION=1 is added to EXTRA_ENV unless EXTRA_ENV already names GR8_GLM53F_VISION
+#             (GR8_GLM53F_VISION=0 turns it off). Every box loads the vision tower, about 1.6 GiB of GPU memory each.
 #   MENTAT=0 (default): the two boxes from PEERS (their LAN addresses, head first) and, if set, IPS and IPS2 (each box's
 #             fabric address on the first and second ConnectX root, in PEERS order). Nothing is announced.
 #   MENTAT=1: find the other box through the host's mentat daemon (gr8's MENTAT=localhost) and announce the API in the
@@ -18,6 +20,9 @@ case "${TUNE:-speed}" in
   quality) VARIANT=${VARIANT:-k4} SESS=${SESS:-4} CAP=${CAP:-262208} MAX_MODEL_LEN=${MAX_MODEL_LEN:-262144} ;;
   *) echo "TUNE=$TUNE: want speed (the default), context or quality (README.md, \"Pick what to prioritize\")" >&2; exit 2 ;;
 esac
+# gr8's launcher fetches the tower (the release's dense/vision-bf16.safetensors) and the engine loads it only when
+# EXTRA_ENV sets the knob, so it goes there
+case " ${EXTRA_ENV:-} " in *" GR8_GLM53F_VISION="*) ;; *) export EXTRA_ENV="${EXTRA_ENV:+$EXTRA_ENV }GR8_GLM53F_VISION=1" ;; esac
 # gr8 takes GLM-5.3-Flash's k2, k3 and k4 by name, and any other manifest of the release as a path. The boot fetches
 # the release's manifests/ before it reads VARIANT, so a name such as bit349 becomes that file's path in the model
 # cache, for a MODEL pinned to a commit. The handshake shows the manifest's own name.
