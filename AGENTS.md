@@ -13,8 +13,8 @@ On both boxes:
   between their ConnectX ports (README.md, Clustering).
 - Docker and the NVIDIA container toolkit are installed (both come with DGX OS): `docker info | grep -i nvidia` shows
   the `nvidia` runtime.
-- Free disk where Docker keeps volumes: about 76 GB for this box's part of the model and the drafter (86 GB with
-  `TUNE=quality`; switching between the two keeps both, about 91 GB), plus, only if the person turns on the compact expert
+- Free disk where Docker keeps volumes: about 77 GB for this box's part of the model, the vision tower and the
+  drafter (about 90 GB with `TUNE=quality`; switching between the two keeps both, about 130 GB), plus, only if the person turns on the compact expert
   copies (off by default, step 3), 73 GiB (about 78 GB; a `VARIANT=k4` size, the `bit349` size was not measured), plus up
   to 64 GB for the prompt cache. Check
   with `df -h "$(docker info --format '{{.DockerRootDir}}')"`. With compose, you can set `MODEL_CACHE_DIR` and
@@ -76,6 +76,8 @@ What else `knobs.sh` does:
 - When the person sets `VARIANT`, `SESS`, `CAP` or `MAX_MODEL_LEN`, their value wins over the `TUNE`. With
   `TUNE=context`, a `GR8_CP` already in `EXTRA_ENV` keeps its value, and any other `EXTRA_ENV` stays, with `GR8_CP=1`
   added at the end.
+- Image input is on: `GR8_GLM53F_VISION=1` is added to the end of `EXTRA_ENV`, unless `EXTRA_ENV` already names
+  `GR8_GLM53F_VISION`. `GR8_GLM53F_VISION=0` in `EXTRA_ENV` turns it off. Any other `EXTRA_ENV` stays.
 - With `MENTAT=0` (the default), `PEERS` must name two addresses, or the boot stops.
 
 Every knob:
@@ -92,12 +94,16 @@ Every knob:
 | `DFLASH` | `1`: a request alone drafts with the DFlash2 drafter (licence CC BY-NC-ND 4.0), downloaded and converted on the first boot. `0`: MTP only, nothing downloaded | `1` |
 | `MENTAT` | `0`: the two boxes in `PEERS`. `1`: the boxes find each other and their ConnectX addresses through the host's `mentat` daemon, and register the API, in group `GROUP` | `0` |
 | `GROUP` | the `mentat` group, with `MENTAT=1` | `gr8-glm53f-2x` |
+| `GR8_GLM53F_VISION` (in `EXTRA_ENV`) | `1`: image input. Every box loads the vision tower (about 1.6 GiB of memory) and downloads it on the first boot (about 1.1 GB). `0`: text only, nothing downloaded for it. Set it in `EXTRA_ENV`, the same on both boxes; `knobs.sh` adds `GR8_GLM53F_VISION=1` when `EXTRA_ENV` does not name it | `1` |
+| `DEFAULT_MAX_TOKENS` | `max_tokens` for a request that sends none, capped by the room the context leaves. `0`: the front end sizes it from gr8's `SHARE_LIMIT` (32,768 less the prompt, at least 8,192) | `32768` |
+| `DEFAULT_THINK_END_BOOST` | the `</think>` logit gains `per1k` a thousand thinking tokens past `start`, up to `max` (gr8 frontend/README.md, soft thinking budget). `start` is a token count `N`, a share of the request's `max_tokens` written `Fx`, or `N\|Fx` for whichever comes first. Empty turns it off | `start=16384,per1k=4,max=10` |
+| `DEFAULT_THINKING_BUDGET` | the hard thinking budget in tokens for a request that sets none, in the same forms; `0` = no limit. A request with `logprobs` gets none | `28672` |
 | `MODEL_CACHE_DIR`, `PROMPT_CACHE_DIR`, `GR8_HOME_DIR` | compose only: host directories in place of compose's volumes, owned by uid 1000 | compose's volumes |
 | `IMAGE` | compose only: a pinned image, e.g. `ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:sha-<commit>` | `:latest` |
 | `MODEL` | the release, `https://huggingface.co/<org>/<repo>@<commit>` | the commit README.md's numbers were measured with |
 | `DRAFTER` | the drafter, `https://huggingface.co/<org>/<repo>@<commit>` | the commit README.md's numbers were measured with |
 | `HF_TOKEN` | sent only to Hugging Face, for a gated or private repo | none |
-| `EXTRA_ENV` | `NAME=VALUE` pairs for the engine, separated by spaces, the same on both boxes. `.env.example` has `GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1` commented out: off by default, step 3 turns it on | none |
+| `EXTRA_ENV` | `NAME=VALUE` pairs for the engine, separated by spaces, the same on both boxes. `.env.example` has `GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1` commented out: off by default, step 3 turns it on | none; `knobs.sh` adds `GR8_GLM53F_VISION=1` (and `GR8_CP=1` with `TUNE=context`) |
 
 Any other gr8 launcher option works too (gr8/KNOBS.md).
 
@@ -176,8 +182,8 @@ netplan example (README.md, Clustering): replace them with yours. With `mentat`,
    If you wrote the copies (step 3), add `-e EXTRA_ENV="GR8_LOAD_COMPACT=/var/lib/gr8/cache/compact-tp2 GR8_LOAD_MERGE_KB=1"`
    to this command on both boxes; the copies are read only with it. (With compose, `.env` carries the line.)
 
-   The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 76 GB, the
-   model and the drafter) and converts the drafter.
+   The first boot downloads each box's part from Hugging Face into the `glm53f-2x-cache` volume (about 77 GB, the
+   model, the vision tower and the drafter) and converts the drafter.
 
    Or with compose, on both boxes:
 
@@ -227,6 +233,8 @@ Wait for `serving:` in the head's log, then run the other checks below.
   The reply is JSON with a `choices` list. The model thinks before it answers: the thinking comes back in
   `message.reasoning` and counts toward `max_tokens`. With a small `max_tokens`, the reply can stop during the
   thinking, with `message.content` empty.
+- Image input: send a small picture inline, as an `image_url` content part with a `data:` URL (base64), and ask what
+  it shows. The API takes only inline images, up to 16 a request.
 - To stop, on both boxes: `docker stop glm53f-2x-spark && docker rm glm53f-2x-spark` (compose: `docker compose down`).
 
 ## 5. When a step fails
