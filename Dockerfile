@@ -167,5 +167,8 @@ ENV DEFAULT_MAX_TOKENS=32768 DEFAULT_THINK_END_BOOST="start=16384,per1k=4,max=10
 # into an answer is untouched. Greedy requests keep 0.2 on the reply and 0.5 in the think block. A client's own
 # presence_penalty is added on top.
 ENV DEFAULT_PRESENCE_PENALTY="greedy=0.2,greedy.thinking=0.5,nongreedy.thinking=0.5"
+# A call to a tool the request did not declare comes back as a tool call, so an agent can answer it with its own
+# unknown-tool error and the model can correct itself; text keeps it in the reply's content.
+ENV UNDECLARED_TOOL_CALLS=emit
 USER 1000:1000
 ENTRYPOINT ["/opt/glm53f-2x/entrypoint.sh"]

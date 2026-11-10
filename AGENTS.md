@@ -99,6 +99,7 @@ Every knob:
 | `DEFAULT_THINK_END_BOOST` | the `</think>` logit gains `per1k` a thousand thinking tokens past `start`, up to `max` (gr8 frontend/README.md, soft thinking budget). `start` is a token count `N`, a share of the request's `max_tokens` written `Fx`, or `N\|Fx` for whichever comes first. Empty turns it off | `start=16384,per1k=4,max=10` |
 | `DEFAULT_THINKING_BUDGET` | the hard thinking budget in tokens for a request that sets none, in the same forms; `0` = no limit. A request with `logprobs` gets none | `28672` |
 | `DEFAULT_PRESENCE_PENALTY` | inside the think block 0.5 for every request; on the reply 0.2 for greedy requests only. The format is in gr8/KNOBS.md; `0` turns it off | `greedy=0.2,greedy.thinking=0.5,nongreedy.thinking=0.5` |
+| `UNDECLARED_TOOL_CALLS` | `emit`: a call to an undeclared tool name comes back in `tool_calls` (the client answers it with its own error); `text`: it stays in `content`, `finish_reason: stop` | `emit` |
 | `MODEL_CACHE_DIR`, `PROMPT_CACHE_DIR`, `GR8_HOME_DIR` | compose only: host directories in place of compose's volumes, owned by uid 1000 | compose's volumes |
 | `IMAGE` | compose only: a pinned image, e.g. `ghcr.io/kindlingai/glm-5.3-flash-exlr8-2x-spark:sha-<commit>` | `:latest` |
 | `MODEL` | the release, `https://huggingface.co/<org>/<repo>@<commit>` | the commit README.md's numbers were measured with |
