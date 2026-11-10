@@ -161,5 +161,11 @@ ENV TP=2 GROUP=gr8-glm53f-2x KV_FORMAT=int4 FLASH_CACHE=aligned KV_STORE=@/etc/g
 # a request the boost does not end, and leaves 4,096 of the default 32,768 to answer. Both count thinking tokens only.
 # A request's own max_tokens, think_end_boost or thinking_budget wins.
 ENV DEFAULT_MAX_TOKENS=32768 DEFAULT_THINK_END_BOOST="start=16384,per1k=4,max=10" DEFAULT_THINKING_BUDGET=28672
+# Repetition inside the think block for sampled requests: a presence penalty of 0.5 on thinking tokens. On long agent
+# turns GLM-5.3-Flash at T=1 can copy its own reasoning paragraph after paragraph; in agent-harness replays this
+# stopped the loops (worst repeat 4 copies, was 72) and all 54 edits landed. The reply is not penalized, so code copied
+# into an answer is untouched. Greedy requests keep 0.2 on the reply and 0.5 in the think block. A client's own
+# presence_penalty is added on top.
+ENV DEFAULT_PRESENCE_PENALTY="greedy=0.2,greedy.thinking=0.5,nongreedy.thinking=0.5"
 USER 1000:1000
 ENTRYPOINT ["/opt/glm53f-2x/entrypoint.sh"]
