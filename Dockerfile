@@ -140,7 +140,7 @@ ENV PATH=/opt/glm53f-2x/bin:/opt/gr8/bin:$PATH PYTHONPATH=/opt/gr8/frontend HOME
 #                  context-parallel KV for context
 #   CAP            the KV pool in tokens, shared by the sessions: 2,097,152 for speed and context, 262,208 for quality
 #   MAX_MODEL_LEN  the longest single request, prompt and output together: 262,144, or 1,048,576 for context
-#   SESS           the requests that decode at once: 8, or 4 for quality
+#   SESS           the requests that decode at once: 4, or 8 for context
 #   VARIANT        the release's width manifest: bit349 (about 3.49 bits a routed weight), or k4 for quality
 #   DFLASH         1: a request alone drafts with the DFlash2 drafter (fetched and converted on the first boot); 0: MTP only
 #   MENTAT         0: the two boxes in PEERS; 1: find each other through mentat (knobs.sh)
