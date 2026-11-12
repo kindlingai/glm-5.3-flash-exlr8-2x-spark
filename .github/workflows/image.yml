@@ -177,8 +177,8 @@ jobs:
           d=$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 "$img" show-config --no-check | grep "^digest")
           [ "$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 -e TUNE=speed "$img" show-config --no-check | grep "^digest")" = "$d" ] \
             || { echo "TUNE=speed: not the default's cluster options"; exit 1; }
-          want TUNE=speed '^  VARIANT +[^ ]*/manifests/exlr8-manifest-bit349\.json' '^  SESS +8 ' '^  CAP +2097152 ' '^  MAX_MODEL_LEN +262144 '
-          want TUNE=context '^  VARIANT +[^ ]*/manifests/exlr8-manifest-bit349\.json' '^  CAP +2097152 ' '^  MAX_MODEL_LEN +1048576 ' 'GR8_CP=1'
+          want TUNE=speed '^  VARIANT +[^ ]*/manifests/exlr8-manifest-bit349\.json' '^  SESS +4 ' '^  CAP +2097152 ' '^  MAX_MODEL_LEN +262144 '
+          want TUNE=context '^  VARIANT +[^ ]*/manifests/exlr8-manifest-bit349\.json' '^  SESS +8 ' '^  CAP +2097152 ' '^  MAX_MODEL_LEN +1048576 ' 'GR8_CP=1'
           want TUNE=quality '^  VARIANT +k4' '^  SESS +4 ' '^  CAP +262208 ' '^  MAX_MODEL_LEN +262144 '
           want "TUNE=quality CAP=131136 MAX_MODEL_LEN=131072" '^  CAP +131136 ' '^  MAX_MODEL_LEN +131072 '
           rc=0; err=$(docker run --rm -e PEERS=10.9.0.1,10.9.0.2 -e TUNE=fast "$img" show-config --no-check 2>&1) || rc=$?

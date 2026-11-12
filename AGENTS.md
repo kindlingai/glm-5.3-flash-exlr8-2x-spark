@@ -66,8 +66,8 @@ Set the same values on both boxes, in `.env` (compose) or with `docker run -e`.
 
 | `TUNE` | the settings it sets (`knobs.sh`) | what it gives |
 |---|---|---|
-| `speed` (default) | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=262144` | the settings of README.md's card: eight requests at once, each up to 262,144 tokens |
-| `context` | the same as `speed`, with `MAX_MODEL_LEN=1048576` and `GR8_CP=1` added to `EXTRA_ENV` (context-parallel KV) | one request up to 1,048,576 tokens, with more memory free on each box. Decode at short context and prefill are a little slower |
+| `speed` (default) | `VARIANT=bit349`, `SESS=4`, `CAP=2097152`, `MAX_MODEL_LEN=262144` | the settings of README.md's card: four requests at once, each up to 262,144 tokens |
+| `context` | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=1048576`, and `GR8_CP=1` added to `EXTRA_ENV` (context-parallel KV) | eight requests at once, one request up to 1,048,576 tokens, with more memory free on each box. Decode at short context and prefill are a little slower |
 | `quality` | `VARIANT=k4`, `SESS=4`, `CAP=262208`, `MAX_MODEL_LEN=262144` | the release's widest width (K4), four requests at once, each up to 262,144 tokens |
 
 What else `knobs.sh` does:
@@ -88,7 +88,7 @@ Every knob:
 | `IPS`, `IPS2` | each box's ConnectX address on PCIe root 1 and root 2, in `PEERS` order | none |
 | `TUNE` | `speed`, `context`, `quality` | `speed` |
 | `VARIANT` | the release's width manifest: `bit349` (K3 with K4 where it lowers KL most, about 3.49 bits a routed weight), `k4`, or another of the release's manifests | `TUNE`'s: `bit349`, or `k4` for `quality` |
-| `SESS` | the requests that decode at once, 1 to 8 | `TUNE`'s: `8`, or `4` for `quality` |
+| `SESS` | the requests that decode at once, 1 to 8 | `TUNE`'s: `4`, or `8` for `context` |
 | `CAP` | the KV pool in tokens, shared by the sessions, a multiple of 64; about 5 KB of memory a token. Every box holds the whole pool | `TUNE`'s: `2097152`, or `262208` for `quality` |
 | `MAX_MODEL_LEN` | the longest single request, prompt and output together: at most `CAP` less the guard rows, and at most 1,048,576 | `TUNE`'s: `262144`, or `1048576` for `context` |
 | `DFLASH` | `1`: a request alone drafts with the DFlash2 drafter (licence CC BY-NC-ND 4.0), downloaded and converted on the first boot. `0`: MTP only, nothing downloaded | `1` |

@@ -147,7 +147,7 @@ Set these in `.env` next to `compose.yaml` (see `.env.example`), or with `docker
 | `PEERS` | none | The two boxes' 10G LAN addresses, head first. Required unless `MENTAT=1`. |
 | `IPS`, `IPS2` | none | Each box's ConnectX address on PCIe root 1 and root 2, in `PEERS` order. |
 | `VARIANT` | `bit349` (`k4` with `TUNE=quality`) | The release's width manifest, such as `bit349` or `k4`. A width not in the cache yet downloads at boot. |
-| `SESS` | `8` (`4` with `TUNE=quality`) | The requests that decode at once, 1 to 8. |
+| `SESS` | `4` (`8` with `TUNE=context`) | The requests that decode at once, 1 to 8. |
 | `CAP` | `2097152` (`262208` with `TUNE=quality`) | The KV pool in tokens, shared by the sessions. Each request reserves its prompt + `max_tokens` from it. |
 | `MAX_MODEL_LEN` | `262144` (`1048576` with `TUNE=context`) | The longest single request, prompt and output together. At most 1,048,576. |
 | `DFLASH` | `1` | `1` drafts with [DFlash2](https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2) (CC BY-NC-ND 4.0) when a request runs alone, downloaded on the first boot. `0` uses MTP only and downloads nothing. |
@@ -163,7 +163,7 @@ The image pins the weights to fixed Hugging Face commits. Set `MODEL` or `DRAFTE
 (`https://huggingface.co/<org>/<repo>@<commit>`). With a `MODEL` that follows a branch, set `VARIANT` to the
 manifest's path.
 
-[gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/d62cb6b4eae3fb0eba5f71d98be90d0fb65b8aa4/KNOBS.md) lists the
+[gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/db6f2c17c7b05303b69ce667e416d10340aeb9b7/KNOBS.md) lists the
 advanced `gr8` options, which you can also set in `.env`.
 
 ## Pick what to prioritize
@@ -172,9 +172,11 @@ advanced `gr8` options, which you can also set in `.env`.
 
 | `TUNE` | sets |
 |---|---|
-| `speed` (default) | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=262144` |
-| `context` | the same as `speed`, with `MAX_MODEL_LEN=1048576` and context-parallel KV (`GR8_CP=1`, experimental) |
+| `speed` (default) | `VARIANT=bit349`, `SESS=4`, `CAP=2097152`, `MAX_MODEL_LEN=262144` |
+| `context` | `VARIANT=bit349`, `SESS=8`, `CAP=2097152`, `MAX_MODEL_LEN=1048576`, and context-parallel KV (`GR8_CP=1`, experimental) |
 | `quality` | `VARIANT=k4` (the release's widest width), `SESS=4`, `CAP=262208`, `MAX_MODEL_LEN=262144` |
+
+With shared waterfill MTP=3 drafting (`S2_SHARED_WATERFILL=1`, `MTP=3`), `TUNE=speed` defaults to `SESS=4` (max concurrent 4), leaving 8.9-9.2 GiB of post-capture memory free per box (25 s warm boot; 55.1 / 70.3 / 82.9 tok/s at 1 / 2 / 4 streams, against 56.0 / 63.9 / 78.5 tok/s on the prior `SESS=8` `MTP=1` build). `SESS=8` with `MTP=3` without context-parallel KV leaves 6.4-6.9 GiB free; `TUNE=context` runs `SESS=8` with `GR8_CP=1` (8.7-9.1 GiB free, 29 s warm boot, 53.0 / 69.2 / 79.8 / 97.4 tok/s at 1 / 2 / 4 / 8 streams). `TUNE=quality` runs `SESS=4` with `MTP=3` (9.4-9.6 GiB free, 53.3 / 65.3 / 78.3 tok/s at 1 / 2 / 4 streams vs 53.1 / 58.7 / 72.4 tok/s with `GR8_S2_SHARED_WATERFILL=0`).
 
 ## Compact expert copies
 

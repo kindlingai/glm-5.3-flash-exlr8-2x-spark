@@ -2,7 +2,7 @@
  "version": 1,
  "title": "GLM-5.3-Flash",
  "variant": "exlr8 bit349, int4 KV",
- "summary": "GLM-5.3-Flash on two GB10s at TP=2 with gr8: the exlr8 release at its bit349 manifest (K3 with K4 where it lowers KL most, about 3.49 bits a routed weight), int4 KV, DFlash2 speculative decoding, eight sessions sharing a 2,097,152-token KV pool, a prompt cache on disk, and image input.",
+ "summary": "GLM-5.3-Flash on two GB10s at TP=2 with gr8: the exlr8 release at its bit349 manifest (K3 with K4 where it lowers KL most, about 3.49 bits a routed weight), int4 KV, DFlash2 speculative decoding, four sessions (SESS=4, max concurrent 4; TUNE=context serves 8) sharing a 2,097,152-token KV pool, shared waterfill MTP=3 drafting, a prompt cache on disk, and image input.",
  "model": "kindlingai/glm-5.3-flash-exlr8-k2-k3-k4",
  "hardware": "ASUS GX10 / DGX Spark (GB10)",
  "stack": [
@@ -18,49 +18,67 @@
    "label": "TP=2",
    "nodes": 2,
    "decode": {
-    "code": 76.4,
-    "prose": 42.4,
-    "structured": 93.9
+    "code": 76.5,
+    "prose": 41.8,
+    "structured": 93.1
    },
    "prefill": [
     {
      "context": 8192,
-     "tps": 1623
+     "tps": 1670
     },
     {
      "context": 32768,
-     "tps": 1702
+     "tps": 1729
     },
     {
      "context": 131072,
-     "tps": 1232
+     "tps": 1595
     }
    ],
    "concurrency": [
     {
      "streams": 1,
-     "aggregate_tps": 56.0
+     "aggregate_tps": 55.1
     },
     {
      "streams": 2,
-     "aggregate_tps": 63.9
+     "aggregate_tps": 70.3
     },
     {
      "streams": 4,
-     "aggregate_tps": 78.5
-    },
-    {
-     "streams": 8,
-     "aggregate_tps": 98.0
+     "aggregate_tps": 82.9
     }
    ],
    "max_context": 262144,
    "kv_pool_tokens": 2097152,
-   "max_concurrent": 8,
+   "max_concurrent": 4,
+   "max_tokens_per_chat": [
+    {
+     "chats": 1,
+     "tokens": 262144,
+     "source": "measured"
+    },
+    {
+     "chats": 2,
+     "tokens": 262144,
+     "source": "computed"
+    },
+    {
+     "chats": 4,
+     "tokens": 262144,
+     "source": "computed"
+    }
+   ],
+   "max_tokens_per_chat_note": "8 chats 233,458 with TUNE=context (computed)",
    "quality": [
     {
+     "name": "Default sessions",
+     "value": "SESS=4 (8 with TUNE=context)"
+    },
+    {
      "name": "Needle recall",
-     "value": "found at 128K in 8 of 8 runs"
+     "value": "found at 128K"
     }
    ]
   }
