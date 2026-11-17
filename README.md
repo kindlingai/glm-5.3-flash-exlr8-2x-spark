@@ -163,7 +163,7 @@ The image pins the weights to fixed Hugging Face commits. Set `MODEL` or `DRAFTE
 (`https://huggingface.co/<org>/<repo>@<commit>`). With a `MODEL` that follows a branch, set `VARIANT` to the
 manifest's path.
 
-[gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/db6f2c17c7b05303b69ce667e416d10340aeb9b7/KNOBS.md) lists the
+[gr8/KNOBS.md](https://github.com/kindlingai/gr8/blob/405700981e2aa6172481486b74d3c48ee23ec9e2/KNOBS.md) lists the
 advanced `gr8` options, which you can also set in `.env`.
 
 ## Pick what to prioritize
